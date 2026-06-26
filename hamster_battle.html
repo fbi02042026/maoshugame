@@ -837,11 +837,11 @@ function updateCat(dt){
                     c.collCooldown = 0.05;
                 } else {
                     // 不眩晕：推出 + 减速 + 沿边滑行（防哆嗦）
-                    const p=pushOut(c.x,c.y,c.r+10,f.x,f.y,f.w,f.h);
+                    const p=pushOut(c.x,c.y,c.r+12,f.x,f.y,f.w,f.h);
                     const pdx=p.x-c.x, pdy=p.y-c.y;
                     c.x=p.x; c.y=p.y;
-                    c.curSpd *= 0.7;
-                    c.collCooldown = 0.15; // 稍长冷却，避免反复碰撞
+                    c.curSpd *= 0.5;
+                    c.collCooldown = c.state==='patrol' ? 0.3 : 0.2; // 巡逻时冷却更长，避免反复碰撞抖动
                     // 推出方向设为滑行方向（沿家具边缘走，不要来回弹）
                     if(Math.hypot(pdx,pdy)>0.01){
                         // 法向量（远离家具）
@@ -1395,6 +1395,13 @@ function startLevel(lid){
     G.energy=lv.energy; G.maxEnergy=lv.energy;
     generateMap(lid);
     G.hamster=createHamster(); G.cat=createCat();
+    // 猫窝位置跟随猫的出生点（覆盖之前的固定位置）
+    for(let f of G.furniture){
+        if(f.type==='catbed'){
+            f.x = G.cat.x - f.w/2;
+            f.y = G.cat.y - f.h/2;
+        }
+    }
     // 第一关：猫强制睡觉更久，玩家先熟悉操作
     if(lid===1 && G.cat){
         G.cat.state='sleeping';
@@ -1609,13 +1616,8 @@ function updateAction(dt){
                     G.cat.face='surprised';
                     G.cat.surprisedTimer=2.0;
                     G.cat.catImg='catSurprise';
-                    G.sageHint={text:'拿到食物了！猫被吵醒了，快躲起来！',timer:4.0};
-                    // 激活引导教程
-                    if(G.tutorial && !G.tutorial.active && G.tutorial.waitFood){
-                        G.tutorial.active=true;
-                        G.tutorial.waitFood=false;
-                        G.tutorial.timer=0;
-                    }
+                    G.sageHint={text:'猫醒了！快跑！',timer:3.0};
+                    // 不再启动引导教程
                 }
             }
         } else {
@@ -1965,13 +1967,14 @@ function drawActionUI(){
         ctx.fillText('🍖 食物掉落了！快去捡回来！', G.W/2, 24);
         ctx.globalAlpha = 1;
     }
-    // 仙人提示（统一位置：屏幕中央偏下）
+    // 仙人提示（统一位置：对话框上方，和开场引导位置一致）
     if(G.sageHint && G.sageHint.timer > 0){
         const alpha = Math.min(1, G.sageHint.timer);
         ctx.globalAlpha = alpha;
-        // 仙人图标 + 提示文字
+        // 仙人图标 + 提示文字（放在对话框上方）
         ctx.fillStyle='rgba(255,255,255,0.92)';
-        const tw = 300, th = 44, tx = G.W/2 - tw/2, ty = G.H/2 + 40;
+        const tw = 300, th = 44;
+        const tx = G.W/2 - tw/2, ty = G.H - 190; // 对话框上方
         rRect(tx,ty,tw,th,12); ctx.fill();
         ctx.strokeStyle=C.gold; ctx.lineWidth=2; rRect(tx,ty,tw,th,12); ctx.stroke();
         if(IMAGES.sage && IMAGES.sage.complete){
@@ -2060,7 +2063,7 @@ function drawOpeningUI(){
     if(G.openingText){
         // 仙人图片在上方，放大一倍
         const sageH = 160, sageW = 160;
-        const sageX = G.W/2 - 100, sageY = G.H - 90; // 往左下100
+        const sageX = G.W/2 - 100, sageY = G.H - 140; // 往左下100, 往上移50
         if(IMAGES.sage && IMAGES.sage.complete){
             ctx.drawImage(IMAGES.sage, sageX-sageW/2, sageY-sageH, sageW, sageH);
         } else {
