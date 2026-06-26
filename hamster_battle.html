@@ -120,7 +120,7 @@ const DIFFICULTY = {
     hamsterBoostDuration: 1.5,   // 加速持续时间(秒)（减半）
     catBaseSpeed: 1.93,          // 猫基础速度
     catChaseMultiplier: 1.0,     // 追逐速度倍率
-    catPatrolMultiplier: 0.8,    // 巡逻速度倍率
+    catPatrolMultiplier: 0.5,    // 巡逻速度倍率（50%速度慢慢溜达）
     catAccel: 6.0,               // 猫加速度
     catDecel: 2.5,               // 猫减速度
     catBaseTurnRate: 5.0,        // 基础转向速率
@@ -171,6 +171,31 @@ function randInt(a,b){ return Math.floor(rand(a,b+1)); }
 function circRectHit(cx,cy,cr,rx,ry,rw,rh){
     let nx=clamp(cx,rx,rx+rw), ny=clamp(cy,ry,ry+rh);
     return (cx-nx)**2+(cy-ny)**2 < cr*cr;
+}
+// 视线检测：猫到老鼠之间是否有障碍物阻挡
+function hasLineOfSight(x1,y1,x2,y2){
+    const steps = 10;
+    const dx=(x2-x1)/steps, dy=(y2-y1)/steps;
+    for(let i=1;i<steps;i++){
+        const px=x1+dx*i, py=y1+dy*i;
+        for(let f of G.furniture){
+            if(f.interactive && circRectHit(px,py,2,f.x,f.y,f.w,f.h)) return false;
+        }
+    }
+    return true;
+}
+// 猫视野锥检测：老鼠是否在猫面朝方向的扇形区域内
+function isInCatVisionCone(c,h){
+    const dx=h.x-c.x, dy=h.y-c.y;
+    const d=Math.hypot(dx,dy);
+    if(d>350) return false; // 视野锥最大距离350px
+    // 猫面朝方向
+    const catAngle = Math.atan2(c.vy, c.vx);
+    const targetAngle = Math.atan2(dy, dx);
+    let diff = targetAngle - catAngle;
+    while(diff > Math.PI) diff -= Math.PI*2;
+    while(diff < -Math.PI) diff += Math.PI*2;
+    return Math.abs(diff) < Math.PI/3; // 60度扇形
 }
 function pushOut(cx,cy,cr,rx,ry,rw,rh){
     let nx=clamp(cx,rx,rx+rw), ny=clamp(cy,ry,ry+rh);
@@ -341,8 +366,11 @@ function generateMap(lid) {
         {x:300,y:580},{x:550,y:520},
     ];
     const sh = [...cands].sort(()=>Math.random()-0.5);
+    const margin = 30; // 距离边缘至少30px
     for(let i=0;i<Math.min(cnt,sh.length);i++){
-        G.foods.push({x:sh[i].x, y:sh[i].y, type:FOOD_TYPES[i%FOOD_TYPES.length], collected:false, stealing:false, stealProgress:0});
+        const fx = Math.max(margin, Math.min(G.mapW-margin, sh[i].x));
+        const fy = Math.max(margin, Math.min(G.mapH-margin, sh[i].y));
+        G.foods.push({x:fx, y:fy, type:FOOD_TYPES[i%FOOD_TYPES.length], collected:false, stealing:false, stealProgress:0});
     }
     G.foodTarget = cnt;
 }
@@ -461,8 +489,9 @@ function updateCat(dt){
 
     // 统一的alertValue增长/下降（非chase状态下）
     if(c.state !== 'chase' && c.state !== 'stunned' && c.state !== 'confused'){
-        if(d < 500){
-            // 距离越近增长越快（1x~6x）
+        const canSee = hasLineOfSight(c.x,c.y,h.x,h.y) && isInCatVisionCone(c,h);
+        if(d < 500 && canSee){
+            // 距离越近增长越快（1x~6x），且在视野锥内
             const rangeFactor = 1 + (500 - d) / 100;
             let gain = lv.alertSpeed * 10 * dt * rangeFactor;
             if(hiding) gain *= 0.15; // 躲藏时增长极慢
@@ -1507,8 +1536,8 @@ function updateAction(dt){
 
     G.alertValue=c.alertValue;
 
-    // 鼠洞
-    if(dist(h,G.ratHole)<h.r+G.ratHole.r && G.foodCollected>0){
+    // 鼠洞 - 只要活着到达鼠洞就赢
+    if(dist(h,G.ratHole)<h.r+G.ratHole.r){
         G.returnEarly=G.foodCollected<G.foodTarget;
         endGame(true);
     }
@@ -1862,21 +1891,24 @@ function drawOpeningUI(){
     ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(0,0,G.W,G.H);
     ctx.fillStyle='#FFF'; ctx.font='18px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillText(`第${G.currentLevel}关 - ${LEVELS[G.currentLevel-1].name}`,G.W/2,G.H/2);
-    // 第1关开场引导文字 + 仙人
+    // 第1关开场引导文字 + 仙人（原始大小在对话框上方）
     if(G.openingText){
+        // 仙人图片在上方，原始大小
+        const sageH = 80, sageW = 80;
+        const sageX = G.W/2, sageY = G.H-230;
+        if(IMAGES.sage && IMAGES.sage.complete){
+            ctx.drawImage(IMAGES.sage, sageX-sageW/2, sageY-sageH, sageW, sageH);
+        } else {
+            ctx.font='56px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText('🧙',sageX,sageY-sageH/2);
+        }
+        // 对话框在仙人下方
         ctx.fillStyle='rgba(255,255,255,0.92)';
-        const bw=G.W-90, bh=55, bx=45, by=G.H-170;
+        const bw=G.W-90, bh=50, bx=45, by=G.H-145;
         rRect(bx,by,bw,bh,15); ctx.fill();
         ctx.strokeStyle=C.darkBrown; ctx.lineWidth=2; rRect(bx,by,bw,bh,15); ctx.stroke();
-        // 仙人图片
-        if(IMAGES.sage && IMAGES.sage.complete){
-            ctx.drawImage(IMAGES.sage, bx+10, by+8, 38, 38);
-        } else {
-            ctx.font='28px serif'; ctx.textAlign='left';
-            ctx.fillText('🧙',bx+8,by+30);
-        }
         ctx.fillStyle='#333'; ctx.font='15px sans-serif'; ctx.textAlign='center';
-        ctx.fillText(G.openingText,bx+bw/2+15,by+bh/2);
+        ctx.fillText(G.openingText,bx+bw/2,by+bh/2);
     }
     // 321倒计时
     if(G.countdown>=0){
@@ -1892,23 +1924,24 @@ function drawOpeningUI(){
 
 function drawTutorial(){
     const t=G.tutorial;
-    const bx=65,by=G.H-220,bw=G.W-90,bh=55;
+    const bw=G.W-90, bh=45, bx=45, by=G.H-140;
+    // 仙人图片在对话框上方，原始大小
+    const sageH=70, sageW=70;
+    const sageX=G.W/2, sageY=by-10;
+    if(IMAGES.sage && IMAGES.sage.complete){
+        ctx.drawImage(IMAGES.sage, sageX-sageW/2, sageY-sageH, sageW, sageH);
+    } else {
+        ctx.font='48px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('🧙',sageX,sageY-sageH/2);
+    }
+    // 对话框
     ctx.fillStyle='rgba(255,255,255,0.92)';
     rRect(bx,by,bw,bh,15); ctx.fill();
     ctx.strokeStyle=C.darkBrown; ctx.lineWidth=2; rRect(bx,by,bw,bh,15); ctx.stroke();
-    // 仙人引导图片
-    if(IMAGES.sage && IMAGES.sage.complete){
-        const ih=38, iw=38;
-        ctx.drawImage(IMAGES.sage, bx+10, by+8, iw, ih);
-    } else {
-        ctx.font='28px serif'; ctx.textAlign='left';
-        ctx.fillText('🧙',bx+8,by+25);
-    }
-    // 文字
-    ctx.fillStyle='#333'; ctx.font='14px sans-serif';
-    ctx.fillText(t.text,bx+50,by+22);
-    ctx.fillStyle='#999'; ctx.font='11px sans-serif';
-    ctx.fillText(`${t.step+1}/6`,bx+50,by+42);
+    ctx.fillStyle='#333'; ctx.font='14px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(t.text,bx+bw/2,by+bh/2);
+    ctx.fillStyle='#999'; ctx.font='11px sans-serif'; ctx.textAlign='right';
+    ctx.fillText(`${t.step+1}/6`,bx+bw-10,by+bh-5);
 }
 
 // ---- Result ----
@@ -2045,10 +2078,10 @@ function drawHamsterSprite(x,y,r,face,dir){
                 if(h.failAnim === 'main'){
                     h.failAnim = 'switched';
                     h.failVariant = h.failVariant === 0 ? 1 : 0;
-                    h.failTimer = 2 + Math.random()*2; // 2~4秒
+                    h.failTimer = 2; // 固定2秒
                 } else {
                     h.failAnim = 'main';
-                    h.failTimer = 2.5 + Math.random()*3;
+                    h.failTimer = 2; // 固定2秒
                 }
             }
         }
@@ -2100,6 +2133,29 @@ function drawHamsterSprite(x,y,r,face,dir){
 }
 function drawCat(){
     const c=G.cat;
+    // 猫视野锥（扇形区域）
+    if(c.state!=='sleeping'){
+        const catAngle = Math.atan2(c.vy, c.vx);
+        const coneDist = 350;
+        const coneAngle = Math.PI/3; // 60度
+        // 扇形填充
+        ctx.save();
+        ctx.globalAlpha = c.state==='chase' ? 0.15 : 0.08;
+        ctx.fillStyle = c.state==='chase' ? '#FF4444' : '#FFA500';
+        ctx.beginPath();
+        ctx.moveTo(c.x, c.y);
+        ctx.arc(c.x, c.y, coneDist, catAngle-coneAngle, catAngle+coneAngle);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        // 警戒圈（圆形）
+        ctx.strokeStyle = c.alertValue > 50 ? 'rgba(255,68,68,0.3)' : 'rgba(255,165,0,0.2)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6,4]);
+        ctx.beginPath(); ctx.arc(c.x,c.y,500,0,Math.PI*2); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+    }
     ctx.save(); ctx.translate(c.x,c.y);
     // 警觉可视化
     if(c.state==='chase' || c.alertValue >= 100){
