@@ -660,11 +660,33 @@ function updateCat(dt){
                         c.targetVx=c.vx; c.targetVy=c.vy;
                     }
                 } else {
-                    // 不眩晕：只推出并减速
+                    // 不眩晕：推出 + 减速 + 沿边滑行（防哆嗦）
                     const p=pushOut(c.x,c.y,c.r+10,f.x,f.y,f.w,f.h);
+                    const pdx=p.x-c.x, pdy=p.y-c.y;
                     c.x=p.x; c.y=p.y;
                     c.curSpd *= 0.7;
-                    c.collCooldown = 0.1;
+                    c.collCooldown = 0.15; // 稍长冷却，避免反复碰撞
+                    // 推出方向设为滑行方向（沿家具边缘走，不要来回弹）
+                    if(Math.hypot(pdx,pdy)>0.01){
+                        // 法向量（远离家具）
+                        const nLen=Math.hypot(pdx,pdy);
+                        const nx=pdx/nLen, ny=pdy/nLen;
+                        // 目标方向（朝老鼠）
+                        const tx=c.targetVx, ty=c.targetVy;
+                        // 去掉朝向家具的法向分量，保留切向分量（沿边走）
+                        const dot = tx*nx + ty*ny;
+                        let slideX = tx - dot*nx;
+                        let slideY = ty - dot*ny;
+                        const sLen=Math.hypot(slideX,slideY);
+                        if(sLen>0.3){
+                            c.vx=slideX/sLen; c.vy=slideY/sLen;
+                            c.targetVx=c.vx; c.targetVy=c.vy;
+                        } else {
+                            // 切向分量太小，直接沿法向远离
+                            c.vx=nx; c.vy=ny;
+                            c.targetVx=nx; c.targetVy=ny;
+                        }
+                    }
                 }
                 break;
             }
@@ -705,6 +727,8 @@ function updateCat(dt){
                         // 切向分量为0时，给垂直于法向量的方向
                         c.vx = -ny; c.vy = nx;
                     }
+                    // 同步更新 targetVx/targetVy，避免下一帧又朝向墙壁
+                    c.targetVx = c.vx; c.targetVy = c.vy;
                 }
                 // 全速时擦墙减速很少，非全速减速多些
                 const isFullSpeed = c.curSpd >= c.chaseSpeed * 0.85;
