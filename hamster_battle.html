@@ -275,7 +275,7 @@ function isInCatVisionCone(c,h){
     let diff = targetAngle - catAngle;
     while(diff > Math.PI) diff -= Math.PI*2;
     while(diff < -Math.PI) diff += Math.PI*2;
-    return Math.abs(diff) < Math.PI*56/180; // 56度扇形（70度缩小20%）
+    return Math.abs(diff) < Math.PI*120/180; // 120度扇形（钝角）
 }
 function pushOut(cx,cy,cr,rx,ry,rw,rh){
     let nx=clamp(cx,rx,rx+rw), ny=clamp(cy,ry,ry+rh);
@@ -445,11 +445,11 @@ function generateMap(lid) {
     // 道具
     G.powerups = [];
     if(G.currentLevel <= 2){
-        G.powerups.push({x: G.mapW/2, y: G.mapH/2, type:'dash', collected:false});
+        G.powerups.push({x: G.mapW/2, y: G.mapH/2, type:'toycar', collected:false});
     }
     if(G.currentLevel === 3){
-        G.powerups.push({x: G.mapW/2-60, y: G.mapH/2, type:'dash', collected:false});
-        G.powerups.push({x: G.mapW/2+60, y: G.mapH/2, type:'dash', collected:false});
+        G.powerups.push({x: G.mapW/2-60, y: G.mapH/2, type:'toycar', collected:false});
+        G.powerups.push({x: G.mapW/2+60, y: G.mapH/2, type:'toycar', collected:false});
     }
 }
 
@@ -465,6 +465,7 @@ function createHamster(){
         failAnim:'main', failTimer:0, failVariant:0, // 失败动画交替
         speedBoost:0, speedBoostTimer:0, // 加速逃脱
         dashVx:0, dashVy:0, dashSpeed:0, trail:[],
+        toycarTimer:0, toycarDir:{x:0,y:0}, toycarSpeed:0,
     };
 }
 function createCat(){
@@ -574,7 +575,7 @@ function updateCat(dt){
     if(c.state !== 'chase' && c.state !== 'surprised' && c.state !== 'freeze' && c.state !== 'stunned' && c.state !== 'confused'){
         if(d < 100) {
             // 基础增长（警戒圈内）
-            let gain = lv.alertSpeed * 5 * dt;
+            let gain = lv.alertSpeed * 10 * dt;
             // 如果在视野锥内，增长加速2.5倍
             if(isInCatVisionCone(c,h)) {
                 gain *= 2.5;
@@ -911,7 +912,7 @@ function updateCat(dt){
     // 家具碰撞 — 所有状态都处理（防止卡死）
     if(c.collCooldown <= 0){
         for(let f of G.furniture){
-            if(f.interactive && circRectHit(c.x,c.y,c.r,f.x,f.y,f.w,f.h)){
+            if(f.interactive && c.state!=='sleeping' && circRectHit(c.x,c.y,c.r,f.x,f.y,f.w,f.h)){
                 // 【规则】只有全速追逐且距离较远(>80px)时碰撞才会眩晕
                 const isFullSpeed = c.curSpd >= c.chaseSpeed * 0.85;
                 const stun=getStunTime(f);
@@ -939,7 +940,7 @@ function updateCat(dt){
                 } else {
                     // 不眩晕：推出 + 减速，不反弹只转向
                     const oldX=c.x, oldY=c.y;
-                    const p=pushOut(c.x,c.y,c.r+5,f.x,f.y,f.w,f.h);
+                    const p=pushOut(c.x,c.y,c.r+10,f.x,f.y,f.w,f.h);
                     const pdx=p.x-oldX, pdy=p.y-oldY;
                     c.x=p.x; c.y=p.y;
                     c.curSpd *= 0.3;
@@ -1256,12 +1257,6 @@ function updateCatImg(c, dt){
         c.catImg = updateAlternating(c, dt, ['catAlert1','catAlert2'], ['catAlert1','catAlert2'], 2.5, 4.5, 0.8, 1.2);
         break;
     case 'confused':
-        // 抓到老鼠后开心表情持续3秒后恢复警戒
-        if(c.catImg==='catHappy'){
-            c.happyTimer = (c.happyTimer || 0) + dt;
-            if(c.happyTimer > 3.0){ c.catImg='catNormal'; c.happyTimer=0; }
-            break;
-        }
         c.catImg='catNormal'; break;
     default:
         // patrol/lazy等：如果上次撞过显示生气，否则normal
@@ -1678,6 +1673,9 @@ function updateAction(dt){
             }
         }
     }
+    if(h.toycarTimer > 0){
+        mx=0; my=0; // 玩具车自动走，玩家不能控制
+    }
     // 键盘输入（WASD/方向键）
     let kx=0, ky=0;
     if(G.sageHint && G.sageHint.timer > 0){
@@ -1719,28 +1717,30 @@ function updateAction(dt){
         if(!pw.collected && dist(h, pw) < h.r + 16){
             pw.collected = true;
             SFX.play('powerup');
-            if(pw.type === 'dash'){
-                // 向当前移动方向冲刺飞一段
-                h.speedBoostTimer = 0.5;
-                if(Math.abs(h.vx)>0.01 || Math.abs(h.vy)>0.01){
-                    h.dashVx = h.vx; h.dashVy = h.vy;
+            if(pw.type === 'toycar'){
+                // 玩具车：自动向前走2秒，然后车消失
+                h.toycarTimer = 2.0;
+                if(Math.abs(mx)>0.01 || Math.abs(my)>0.01){
+                    h.toycarDir = {x:mx, y:my};
                 } else {
-                    h.dashVx = h.dir===3?1:h.dir===1?-1:0;
-                    h.dashVy = h.dir===0?1:h.dir===2?-1:0;
+                    h.toycarDir = {x: h.dir===3?1:h.dir===2?-1:0, y: h.dir===0?1:h.dir===1?-1:0};
                 }
-                h.dashSpeed = 250;
-                G.floatTexts.push({x:h.x,y:h.y-20,text:'冲刺!',timer:1.0,maxTimer:1.0,color:'#00FFFF'});
+                h.toycarSpeed = 180;
+                G.floatTexts.push({x:h.x,y:h.y-20,text:'小车!',timer:1.0,maxTimer:1.0,color:'#FF6347'});
             }
         }
     }
-    // 冲刺更新
-    if(h.speedBoostTimer > 0 && h.dashSpeed > 0){
-        h.speedBoostTimer -= dt;
-        h.x += h.dashVx * h.dashSpeed * dt;
-        h.y += h.dashVy * h.dashSpeed * dt;
-        // 边界限制
+    // 玩具车更新
+    if(h.toycarTimer > 0){
+        h.toycarTimer -= dt;
+        h.x += h.toycarDir.x * h.toycarSpeed * dt;
+        h.y += h.toycarDir.y * h.toycarSpeed * dt;
         h.x = clamp(h.x, h.r+10, G.mapW-h.r-10);
         h.y = clamp(h.y, h.r+10, G.mapH-h.r-10);
+        if(h.toycarTimer <= 0){
+            // 车消失，掉落小尘埃
+            G.floatTexts.push({x:h.x,y:h.y-20,text:'车没了!',timer:0.8,maxTimer:0.8,color:'#888'});
+        }
     }
 
     // 碰撞
@@ -2409,13 +2409,18 @@ function drawPowerups(){
         // 闪烁效果
         const glow = 0.6 + 0.4*Math.sin(G.time*4);
         ctx.globalAlpha = glow;
-        if(pw.type==='dash'){
-            ctx.fillStyle='#00CED1';
-            ctx.beginPath(); ctx.arc(0,0,14,0,Math.PI*2); ctx.fill();
-            ctx.strokeStyle='#00FFFF'; ctx.lineWidth=2;
-            ctx.beginPath(); ctx.arc(0,0,14,0,Math.PI*2); ctx.stroke();
-            ctx.fillStyle='#FFF'; ctx.font='bold 12px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-            ctx.fillText('\u26A1',0,1);
+        if(pw.type==='toycar'){
+            // 玩具车外观
+            ctx.fillStyle='#FF6347';
+            ctx.beginPath(); ctx.arc(0,0,16,0,Math.PI*2); ctx.fill();
+            ctx.strokeStyle='#FF0000'; ctx.lineWidth=2;
+            ctx.beginPath(); ctx.arc(0,0,16,0,Math.PI*2); ctx.stroke();
+            // 车轮
+            ctx.fillStyle='#333';
+            ctx.beginPath(); ctx.arc(-8,8,4,0,Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(8,8,4,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle='#FFF'; ctx.font='bold 10px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText('🚗',0,0);
         }
         ctx.restore();
     }
@@ -2425,10 +2430,10 @@ function drawHamsterChar(){
     if(h.invincible>0 && Math.floor(G.time*10)%2===0) return;
     // 老鼠移动拖尾
     if(h.moving && h.trail) {
-        ctx.globalAlpha = 0.15;
+        ctx.globalAlpha = 0.35;
         for(let i=0;i<h.trail.length;i++){
             const t=h.trail[i];
-            const alpha = 0.15 * (1 - i/h.trail.length);
+            const alpha = 0.35 * (1 - i/h.trail.length);
             ctx.globalAlpha = alpha;
             ctx.fillStyle = C.hamsterBody;
             ctx.beginPath();
@@ -2438,6 +2443,16 @@ function drawHamsterChar(){
         ctx.globalAlpha = 1;
     }
     drawHamsterSprite(h.x,h.y,h.r,h.face,h.dir);
+    // 玩具车
+    if(h.toycarTimer > 0){
+        ctx.fillStyle='#FF6347';
+        ctx.beginPath(); ctx.arc(h.x, h.y, h.r+4, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle='#FF0000'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.arc(h.x, h.y, h.r+4, 0, Math.PI*2); ctx.stroke();
+        ctx.fillStyle='#333';
+        ctx.beginPath(); ctx.arc(h.x-5, h.y+h.r-2, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(h.x+5, h.y+h.r-2, 3, 0, Math.PI*2); ctx.fill();
+    }
     // 脚底食物格（能量格样式，带食物图标）
     if(G.foodTarget > 0){
         const slotSize=10, gap=3, totalW=(slotSize+gap)*G.foodTarget-gap;
@@ -2547,7 +2562,7 @@ function drawHamsterSprite(x,y,r,face,dir){
 }
 function drawCat(){
     const c=G.cat;
-    // 猫视野锥（扇形区域）：100px距离，56度
+    // 猫视野锥（扇形区域）：100px距离，120度钝角
     if(c.state!=='sleeping' && c.state!=='surprised' && c.state!=='freeze'){
         // 平滑视野角度：使用target方向避免抖动
         const targetAngle = Math.atan2(c.targetVy || c.vy, c.targetVx || c.vx);
@@ -2556,7 +2571,7 @@ function drawCat(){
         c._smoothAngle = normalizeAngle(c._smoothAngle + diff * 0.15); // 平滑过渡
         const catAngle = c._smoothAngle;
         const coneDist = 100;
-        const coneAngle = Math.PI*56/180; // 56度（70度缩小20%）
+        const coneAngle = Math.PI*120/180; // 120度（钝角扇形）
         // 扇形填充
         ctx.save();
         ctx.globalAlpha = c.state==='chase' ? 0.25 : 0.20;
