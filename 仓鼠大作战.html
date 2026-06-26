@@ -125,12 +125,12 @@ const DIFFICULTY = {
     catDecel: 2.5,               // 猫减速度
     catBaseTurnRate: 5.0,        // 基础转向速率
     catStunDecay: 0.5,           // 每次眩晕时间衰减倍率
-    level1RoomScale: 0.7,        // 第1关房间缩放(70%=缩小30%)
+    level1RoomScale: 0.5,        // 第1关房间缩放(50%)
 };
 
 // ---- 数据 ----
 const LEVELS = [
-    { id:1, name:'厨房', food:3, catSpeed:1.2, alertSpeed:0.4, energy:5, traps:[] },
+    { id:1, name:'厨房', food:1, catSpeed:1.2, alertSpeed:0.4, energy:5, traps:[] },
     { id:2, name:'客厅', food:5, catSpeed:1.4, alertSpeed:0.5, energy:6, traps:['banana'] },
     { id:3, name:'餐厅', food:7, catSpeed:1.6, alertSpeed:0.6, energy:7, traps:['banana','mousetrap'] },
     { id:4, name:'卧室', food:9, catSpeed:1.8, alertSpeed:0.7, energy:7, traps:['banana','mousetrap'] },
@@ -264,14 +264,12 @@ function generateMap(lid) {
     );
     G.ratHole = { x: G.mapW/2, y: G.mapH-35, r: 24 };
 
-    // 靠墙家具（尺寸不缩放，只调整位置适应小房间）
+    // 靠墙家具（尺寸不缩放）
     const wf = isL1 ? [
-        {x:25, y:25, w:110,h:65, type:'fridge',name:'冰箱',interactive:false},
-        {x:155,y:25, w:130,h:55, type:'stove',name:'灶台',interactive:false},
-        {x:310,y:25, w:110,h:55, type:'counter',name:'料理台',interactive:false},
-        {x:445,y:25, w:90, h:70, type:'cabinet',name:'柜子',interactive:false},
-        {x:25, y:G.mapH-80, w:110,h:55, type:'cabinet2',name:'柜子',interactive:false},
-        {x:480,y:G.mapH-80, w:110,h:55, type:'catbed',name:'猫窝',interactive:false},
+        // 第1关简化：只有3个装饰家具（靠墙，不可碰撞）
+        {x:30, y:25, w:110,h:65, type:'fridge',name:'冰箱',interactive:false},
+        {x:170,y:25, w:130,h:55, type:'stove',name:'灶台',interactive:false},
+        {x:G.mapW-140, y:G.mapH-80, w:110,h:55, type:'catbed',name:'猫窝',interactive:false},
     ] : [
         {x:35, y:35, w:110,h:65, type:'fridge',name:'冰箱',interactive:false},
         {x:200,y:35, w:130,h:55, type:'stove',name:'灶台',interactive:false},
@@ -282,39 +280,22 @@ function generateMap(lid) {
     ];
     wf.forEach(f=>G.furniture.push({...f,hitCount:0,maxHits:3,gray:false}));
 
-    // 中央家具随机方案（尺寸不缩放，只调整位置）
-    const scheme = randInt(0,2);
+    // 中央家具（可碰撞障碍物）
+    const scheme = randInt(0,1); // 第1关只有2种方案
     const cf = [];
     if(isL1){
-        if(scheme===0){ // A: 餐桌中央
-            cf.push(
-                {x:240,y:380,w:130,h:85,type:'table',name:'餐桌',interactive:true},
-                {x:225,y:340,w:32, h:32,type:'chair',name:'椅子',interactive:true},
-                {x:358,y:340,w:32, h:32,type:'chair',name:'椅子',interactive:true},
-                {x:225,y:475,w:32, h:32,type:'chair',name:'椅子',interactive:true},
-                {x:358,y:475,w:32, h:32,type:'chair',name:'椅子',interactive:true},
-                {x:50, y:280,w:45, h:45,type:'plant',name:'盆栽',interactive:true},
-                {x:500,y:420,w:55, h:55,type:'box',name:'箱子',interactive:true},
-            );
-        } else if(scheme===1){ // B: 沙发+茶几
-            cf.push(
-                {x:50, y:340,w:160,h:65,type:'sofa',name:'沙发',interactive:true},
-                {x:100,y:450,w:90, h:55,type:'coffeeTable',name:'茶几',interactive:true},
-                {x:500,y:280,w:45, h:45,type:'plant',name:'盆栽',interactive:true},
-                {x:520,y:500,w:55, h:65,type:'cart',name:'餐车',interactive:true},
-                {x:280,y:650,w:55, h:55,type:'box',name:'箱子',interactive:true},
-            );
-        } else { // C: 散布
-            cf.push(
-                {x:50, y:240,w:85,h:85,type:'sofa',name:'沙发',interactive:true},
-                {x:220,y:320,w:85,h:55,type:'coffeeTable',name:'茶几',interactive:true},
-                {x:500,y:240,w:45,h:45,type:'plant',name:'盆栽',interactive:true},
-                {x:400,y:520,w:55,h:55,type:'box',name:'箱子',interactive:true},
-                {x:120,y:620,w:55,h:55,type:'box',name:'箱子',interactive:true},
-                {x:500,y:620,w:55,h:55,type:'box',name:'箱子',interactive:true},
-                {x:320,y:180,w:45,h:45,type:'plant',name:'盆栽',interactive:true},
-            );
-        }
+        // 第1关：中间一道障碍墙，两侧各留34px窄道（猫直径36过不去，老鼠直径28能过）
+        const wallY = Math.floor(G.mapH * 0.45);
+        cf.push(
+            {x:52, y:wallY, w:160,h:65, type:'sofa',name:'沙发',interactive:true},
+            {x:213,y:wallY+10, w:55, h:55, type:'box',name:'箱子',interactive:true},
+            {x:269,y:wallY-5, w:130,h:85, type:'table',name:'餐桌',interactive:true},
+        );
+        // 窄道位置记录（用于闪光提示）
+        G.narrowGaps = [
+            {x:18, y:wallY, w:34, h:65, side:'left'},   // 左侧窄道
+            {x:G.mapW-18-33, y:wallY-5, w:33, h:85, side:'right'}, // 右侧窄道
+        ];
     } else {
         if(scheme===0){
             cf.push(
@@ -351,11 +332,8 @@ function generateMap(lid) {
     // 食物
     const lv=LEVELS[lid-1], cnt=lv.food;
     const cands = isL1 ? [
-        {x:140,y:110},{x:400,y:100},{x:530,y:160},
-        {x:100,y:520},{x:350,y:280},{x:480,y:380},
-        {x:240,y:720},{x:400,y:660},{x:530,y:560},
-        {x:80, y:800},{x:300,y:800},{x:500,y:760},
-        {x:240,y:580},{x:450,y:480},
+        // 第1关：1个食物，放在猫后面（房间上半部分，远离鼠洞）
+        {x:100,y:120},{x:200,y:100},{x:320,y:130},{x:400,y:110},
     ] : [
         {x:200,y:120},{x:500,y:110},{x:750,y:180},
         {x:140,y:580},{x:450,y:300},{x:600,y:420},
@@ -395,7 +373,7 @@ function createCat(){
     if(G.currentLevel===1){st='sleeping';tm=15;} // 第1关猫100%睡觉15秒
     else if(r<0.4){st='sleeping';tm=10;}else if(r<0.8){st='lazy';tm=8;}else{st='patrol';tm=0;}
     const starts = G.currentLevel === 1 ?
-        [{x:420,y:200},{x:140,y:280},{x:480,y:320},{x:280,y:240}] :
+        [{x:200,y:150},{x:350,y:180},{x:280,y:120},{x:150,y:200}] :
         [{x:600,y:280},{x:200,y:380},{x:700,y:460},{x:400,y:320}];
     const sp=starts[randInt(0,starts.length-1)];
     return {
@@ -1305,6 +1283,7 @@ function startLevel(lid){
     G.openingTimer=0; G.lives=3; G.foodCollected=0;
     G.foodDropped=[]; G.catHits=0; G.shakeTimer=0; G.redFlash=0;
     G.alertValue=0; G.paused=false; G.selectedTrap=null; G.countdown=-1;
+    G.narrowGaps=[]; G.sageHint=null;
     const lv=LEVELS[lid-1];
     G.energy=lv.energy; G.maxEnergy=lv.energy;
     generateMap(lid);
@@ -1341,7 +1320,7 @@ function startLevel(lid){
         }
     }
     G.camera.targetX=G.mapW/2; G.camera.targetY=G.mapH/2;
-    const opZoom = (G.currentLevel===1) ? 0.55 : 0.35;
+    const opZoom = (G.currentLevel===1) ? 0.75 : 0.35;
     G.camera.zoom=opZoom; G.camera.x=G.ratHole.x; G.camera.y=G.ratHole.y;
     G.tutorial={active:false,step:0,timer:0,text:''};
 }
@@ -1392,7 +1371,7 @@ function updateOpening(dt){
     const isL1=G.currentLevel===1;
     if(G.openingTimer<3.0){
         G.camera.targetX=G.mapW/2; G.camera.targetY=G.mapH/2;
-        G.camera.targetZoom= isL1 ? 0.55 : 0.35;
+        G.camera.targetZoom= isL1 ? 0.75 : 0.35;
         if(isL1) G.openingText='这是厨房，你的冒险开始之地~';
     } else if(G.openingTimer<5.0){
         if(G.foods.length){
@@ -1540,6 +1519,15 @@ function updateAction(dt){
     if(G.state==='action' && dist(h,G.ratHole)<h.r+G.ratHole.r){
         G.returnEarly=G.foodCollected<G.foodTarget;
         endGame(true);
+    }
+
+    // 仙人近距离提示：猫靠近时提示躲避
+    if(c && (c.state==='chase' || c.state==='alert') && dist(h,c) < 200){
+        G.sageHint = { text:'快躲到家具后面！', timer: 2.0 };
+    }
+    if(G.sageHint){
+        G.sageHint.timer -= dt;
+        if(G.sageHint.timer <= 0) G.sageHint = null;
     }
 
     // 新手引导
@@ -1701,7 +1689,7 @@ function drawLevelSelect(){
 
 // ---- Game Scene ----
 function drawGame(sx,sy){
-    ctx.fillStyle='#333'; ctx.fillRect(0,0,G.W,G.H);
+    ctx.fillStyle='#1a1a1a'; ctx.fillRect(0,0,G.W,G.H); // 墙外区域深色
     ctx.save();
     const z=G.camera.zoom;
     ctx.translate(G.W/2+sx,G.H/2+sy);
@@ -1709,7 +1697,25 @@ function drawGame(sx,sy){
     ctx.translate(-G.camera.x,-G.camera.y);
 
     drawFloorTile(0,0,G.mapW,G.mapH);
+    // 地板边界清晰标记
+    ctx.strokeStyle='rgba(100,80,60,0.5)'; ctx.lineWidth=3;
+    ctx.strokeRect(0,0,G.mapW,G.mapH);
     for(let w of G.walls){ctx.fillStyle=C.wall;ctx.fillRect(w.x,w.y,w.w,w.h);ctx.strokeStyle='#9BC4A8';ctx.lineWidth=1;ctx.strokeRect(w.x,w.y,w.w,w.h);}
+    // 窄道闪光提示
+    if(G.narrowGaps && G.hamster){
+        for(let gap of G.narrowGaps){
+            const d = Math.sqrt((G.hamster.x-(gap.x+gap.w/2))**2 + (G.hamster.y-(gap.y+gap.h/2))**2);
+            if(d < 150){ // 老鼠靠近窄道时才闪光
+                const alpha = 0.15 + 0.1*Math.sin(G.time*4);
+                ctx.fillStyle = `rgba(255,215,0,${alpha})`;
+                ctx.fillRect(gap.x, gap.y, gap.w, gap.h);
+                // 小箭头提示
+                ctx.fillStyle = `rgba(255,215,0,${alpha+0.1})`;
+                ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText('↔', gap.x + gap.w/2, gap.y - 8);
+            }
+        }
+    }
     drawRatHole();
     for(let f of G.furniture) drawFurniture(f);
     for(let food of G.foods) if(!food.collected) drawFood(food);
@@ -1817,6 +1823,25 @@ function drawActionUI(){
         ctx.globalAlpha = alpha;
         ctx.fillStyle='#FF6347'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center';
         ctx.fillText('🍖 食物掉落了！快去捡回来！', G.W/2, 24);
+        ctx.globalAlpha = 1;
+    }
+    // 仙人近距离提示
+    if(G.sageHint && G.sageHint.timer > 0){
+        const alpha = Math.min(1, G.sageHint.timer);
+        ctx.globalAlpha = alpha;
+        // 仙人图标 + 提示文字
+        ctx.fillStyle='rgba(255,255,255,0.9)';
+        const tw = 220, th = 36, tx = G.W/2 - tw/2, ty = 60;
+        rRect(tx,ty,tw,th,12); ctx.fill();
+        ctx.strokeStyle=C.gold; ctx.lineWidth=2; rRect(tx,ty,tw,th,12); ctx.stroke();
+        if(IMAGES.sage && IMAGES.sage.complete){
+            ctx.drawImage(IMAGES.sage, tx+4, ty+2, 32, 32);
+        } else {
+            ctx.font='24px serif'; ctx.textAlign='left';
+            ctx.fillText('🧙',tx+4,ty+22);
+        }
+        ctx.fillStyle='#FF4444'; ctx.font='bold 13px sans-serif'; ctx.textAlign='center';
+        ctx.fillText(G.sageHint.text, tx+tw/2+10, ty+th/2+2);
         ctx.globalAlpha = 1;
     }
     // 警觉条
