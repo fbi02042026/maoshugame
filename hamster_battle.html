@@ -188,14 +188,14 @@ function hasLineOfSight(x1,y1,x2,y2){
 function isInCatVisionCone(c,h){
     const dx=h.x-c.x, dy=h.y-c.y;
     const d=Math.hypot(dx,dy);
-    if(d>250) return false; // 视野锥最大距离250px
+    if(d>120) return false; // 视野锥：约两个猫身长(120px)
     // 猫面朝方向
     const catAngle = Math.atan2(c.vy, c.vx);
     const targetAngle = Math.atan2(dy, dx);
     let diff = targetAngle - catAngle;
     while(diff > Math.PI) diff -= Math.PI*2;
     while(diff < -Math.PI) diff += Math.PI*2;
-    return Math.abs(diff) < Math.PI/4; // 45度扇形
+    return Math.abs(diff) < Math.PI*100/180; // 100度扇形
 }
 function pushOut(cx,cy,cr,rx,ry,rw,rh){
     let nx=clamp(cx,rx,rx+rw), ny=clamp(cy,ry,ry+rh);
@@ -469,13 +469,13 @@ function updateCat(dt){
     // 统一的alertValue增长/下降（非chase/surprised/freeze/stunned/confused状态下）
     if(c.state !== 'chase' && c.state !== 'surprised' && c.state !== 'freeze' && c.state !== 'stunned' && c.state !== 'confused'){
         const canSee = hasLineOfSight(c.x,c.y,h.x,h.y) && isInCatVisionCone(c,h);
-        if(d < 350 && canSee){
-            // 距离越近增长越快（1x~4x），且在视野锥内
-            const rangeFactor = 1 + (350 - d) / 100;
+        if(d < 200 && canSee){
+            // 距离越近增长越快（1x~3x），且在视野锥内
+            const rangeFactor = 1 + (200 - d) / 100;
             let gain = lv.alertSpeed * 10 * dt * rangeFactor;
             if(hiding) gain *= 0.15; // 躲藏时增长极慢
             // 老鼠靠近猫的警戒圈后，警戒加速10%
-            if(d < 200) gain *= 1.10;
+            if(d < 100) gain *= 1.10;
             c.alertValue += gain;
         } else {
             // 远离时慢慢下降
@@ -2138,9 +2138,16 @@ function drawHamsterChar(){
     const h=G.hamster;
     if(h.invincible>0 && Math.floor(G.time*10)%2===0) return;
     drawHamsterSprite(h.x,h.y,h.r,h.face,h.dir);
+    // 背着食物的包裹效果（在身后）
     if(G.foodCollected>0){
-        ctx.font='12px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText('🍖',h.x+16,h.y-10);
+        const bx = h.x - Math.cos(h.dir*Math.PI/2)*10;
+        const by = h.y - Math.sin(h.dir*Math.PI/2)*10;
+        ctx.fillStyle='#8B4513';
+        ctx.beginPath(); ctx.arc(bx, by, 6, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle='#D2691E'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.arc(bx, by, 6, 0, Math.PI*2); ctx.stroke();
+        ctx.fillStyle='#FFD700'; ctx.font='8px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('🍖',bx,by);
     }
 }
 function drawHamsterSprite(x,y,r,face,dir){
@@ -2209,11 +2216,11 @@ function drawHamsterSprite(x,y,r,face,dir){
 }
 function drawCat(){
     const c=G.cat;
-    // 猫视野锥（扇形区域）
+    // 猫视野锥（扇形区域）：约两个猫身长，100度
     if(c.state!=='sleeping' && c.state!=='surprised' && c.state!=='freeze'){
         const catAngle = Math.atan2(c.vy, c.vx);
-        const coneDist = 250;
-        const coneAngle = Math.PI/4; // 45度
+        const coneDist = 120;
+        const coneAngle = Math.PI*100/180; // 100度
         // 扇形填充
         ctx.save();
         ctx.globalAlpha = c.state==='chase' ? 0.15 : 0.08;
@@ -2228,7 +2235,7 @@ function drawCat(){
         ctx.strokeStyle = c.alertValue > 50 ? 'rgba(255,68,68,0.3)' : 'rgba(255,165,0,0.2)';
         ctx.lineWidth = 2;
         ctx.setLineDash([6,4]);
-        ctx.beginPath(); ctx.arc(c.x,c.y,350,0,Math.PI*2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(c.x,c.y,200,0,Math.PI*2); ctx.stroke();
         ctx.setLineDash([]);
         ctx.restore();
     }
