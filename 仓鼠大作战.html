@@ -1536,8 +1536,8 @@ function updateAction(dt){
 
     G.alertValue=c.alertValue;
 
-    // 鼠洞 - 只要活着到达鼠洞就赢
-    if(dist(h,G.ratHole)<h.r+G.ratHole.r){
+    // 鼠洞 - 只要活着到达鼠洞就赢（只有在行动阶段才检测）
+    if(G.state==='action' && dist(h,G.ratHole)<h.r+G.ratHole.r){
         G.returnEarly=G.foodCollected<G.foodTarget;
         endGame(true);
     }
@@ -1893,9 +1893,9 @@ function drawOpeningUI(){
     ctx.fillText(`第${G.currentLevel}关 - ${LEVELS[G.currentLevel-1].name}`,G.W/2,G.H/2);
     // 第1关开场引导文字 + 仙人（原始大小在对话框上方）
     if(G.openingText){
-        // 仙人图片在上方，原始大小
-        const sageH = 80, sageW = 80;
-        const sageX = G.W/2, sageY = G.H-230;
+        // 仙人图片在上方，放大一倍
+        const sageH = 160, sageW = 160;
+        const sageX = G.W/2, sageY = G.H-190; // 挨着对话框上方
         if(IMAGES.sage && IMAGES.sage.complete){
             ctx.drawImage(IMAGES.sage, sageX-sageW/2, sageY-sageH, sageW, sageH);
         } else {
@@ -1925,9 +1925,9 @@ function drawOpeningUI(){
 function drawTutorial(){
     const t=G.tutorial;
     const bw=G.W-90, bh=45, bx=45, by=G.H-140;
-    // 仙人图片在对话框上方，原始大小
-    const sageH=70, sageW=70;
-    const sageX=G.W/2, sageY=by-10;
+    // 仙人图片在对话框上方，放大一倍
+    const sageH=140, sageW=140;
+    const sageX=G.W/2, sageY=by-5; // 挨着对话框
     if(IMAGES.sage && IMAGES.sage.complete){
         ctx.drawImage(IMAGES.sage, sageX-sageW/2, sageY-sageH, sageW, sageH);
     } else {
