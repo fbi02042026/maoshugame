@@ -358,7 +358,7 @@ function generateMap(lid) {
 // ============================================================
 function createHamster(){
     return {
-        x:G.ratHole.x, y:G.ratHole.y,
+        x:G.ratHole.x, y:G.ratHole.y-80, // 出生在鼠洞外面，避免一进场就通关
         r:14, speed:DIFFICULTY.hamsterBaseSpeed, dir:0, moving:false,
         stealing:false, stealTarget:null, stealProgress:0,
         visible:true, invincible:0, face:'normal', animT:0,
@@ -1920,7 +1920,7 @@ function drawOpeningUI(){
     if(G.openingText){
         // 仙人图片在上方，放大一倍
         const sageH = 160, sageW = 160;
-        const sageX = G.W/2, sageY = G.H-190; // 挨着对话框上方
+        const sageX = G.W/2 - 100, sageY = G.H - 90; // 往左下100
         if(IMAGES.sage && IMAGES.sage.complete){
             ctx.drawImage(IMAGES.sage, sageX-sageW/2, sageY-sageH, sageW, sageH);
         } else {
@@ -1952,7 +1952,7 @@ function drawTutorial(){
     const bw=G.W-90, bh=45, bx=45, by=G.H-140;
     // 仙人图片在对话框上方，放大一倍
     const sageH=140, sageW=140;
-    const sageX=G.W/2, sageY=by-5; // 挨着对话框
+    const sageX=G.W/2-100, sageY=by+95; // 往左下100
     if(IMAGES.sage && IMAGES.sage.complete){
         ctx.drawImage(IMAGES.sage, sageX-sageW/2, sageY-sageH, sageW, sageH);
     } else {
