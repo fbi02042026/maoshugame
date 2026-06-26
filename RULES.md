@@ -13,7 +13,7 @@
 - `hamsterBoostDuration: 3.0` 加速持续时间(秒)
 - `catBaseSpeed: 1.68` 猫基础速度（等于老鼠速度）
 - `catChaseMultiplier: 1.0` 追逐速度倍率
-- `level1RoomScale: 0.7` 第1关房间缩放（70%=缩小30%）
+- `level1RoomScale: 0.7` 第1关房间缩放（**仅房间缩小，家具尺寸不变**）
 - `catAccel: 6.0` 猫加速度
 - `catDecel: 2.5` 猫减速度
 

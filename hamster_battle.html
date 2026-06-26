@@ -203,72 +203,118 @@ function canvasCoord(clientX, clientY) {
 // 地图生成
 // ============================================================
 function generateMap(lid) {
-    const scale = (lid===1) ? DIFFICULTY.level1RoomScale : 1.0;
-    G.mapW = Math.floor(900 * scale); G.mapH = Math.floor(1300 * scale);
+    const isL1 = (lid===1);
+    const roomScale = isL1 ? DIFFICULTY.level1RoomScale : 1.0;
+    G.mapW = Math.floor(900 * roomScale); G.mapH = Math.floor(1300 * roomScale);
     G.walls = []; G.furniture = []; G.foods = [];
     G.placedTraps = []; G.furnitureHits = {};
-    const T = Math.max(8, Math.floor(18 * scale));
+    const T = 18; // 墙壁厚度不缩放
     G.walls.push(
         {x:0,y:0,w:G.mapW,h:T},{x:0,y:G.mapH-T,w:G.mapW,h:T},
         {x:0,y:0,w:T,h:G.mapH},{x:G.mapW-T,y:0,w:T,h:G.mapH}
     );
-    G.ratHole = { x: G.mapW/2, y: G.mapH-35*scale, r: 24 };
+    G.ratHole = { x: G.mapW/2, y: G.mapH-35, r: 24 };
 
-    // 靠墙家具
-    const wf = [
-        {x:35*scale,y:35*scale,w:110*scale,h:65*scale,type:'fridge',name:'冰箱',interactive:false},
-        {x:200*scale,y:35*scale,w:130*scale,h:55*scale,type:'stove',name:'灶台',interactive:false},
-        {x:410*scale,y:35*scale,w:110*scale,h:55*scale,type:'counter',name:'料理台',interactive:false},
-        {x:680*scale,y:35*scale,w:90*scale,h:70*scale,type:'cabinet',name:'柜子',interactive:false},
-        {x:35*scale,y:G.mapH-95*scale,w:110*scale,h:55*scale,type:'cabinet2',name:'柜子',interactive:false},
-        {x:720*scale,y:G.mapH-95*scale,w:110*scale,h:55*scale,type:'catbed',name:'猫窝',interactive:false},
+    // 靠墙家具（尺寸不缩放，只调整位置适应小房间）
+    const wf = isL1 ? [
+        {x:25, y:25, w:110,h:65, type:'fridge',name:'冰箱',interactive:false},
+        {x:155,y:25, w:130,h:55, type:'stove',name:'灶台',interactive:false},
+        {x:310,y:25, w:110,h:55, type:'counter',name:'料理台',interactive:false},
+        {x:445,y:25, w:90, h:70, type:'cabinet',name:'柜子',interactive:false},
+        {x:25, y:G.mapH-80, w:110,h:55, type:'cabinet2',name:'柜子',interactive:false},
+        {x:480,y:G.mapH-80, w:110,h:55, type:'catbed',name:'猫窝',interactive:false},
+    ] : [
+        {x:35, y:35, w:110,h:65, type:'fridge',name:'冰箱',interactive:false},
+        {x:200,y:35, w:130,h:55, type:'stove',name:'灶台',interactive:false},
+        {x:410,y:35, w:110,h:55, type:'counter',name:'料理台',interactive:false},
+        {x:680,y:35, w:90, h:70, type:'cabinet',name:'柜子',interactive:false},
+        {x:35, y:G.mapH-95, w:110,h:55, type:'cabinet2',name:'柜子',interactive:false},
+        {x:720,y:G.mapH-95, w:110,h:55, type:'catbed',name:'猫窝',interactive:false},
     ];
     wf.forEach(f=>G.furniture.push({...f,hitCount:0,maxHits:3,gray:false}));
 
-    // 中央家具随机方案
+    // 中央家具随机方案（尺寸不缩放，只调整位置）
     const scheme = randInt(0,2);
     const cf = [];
-    if(scheme===0){ // A: 餐桌中央
-        cf.push(
-            {x:340*scale,y:420*scale,w:130*scale,h:85*scale,type:'table',name:'餐桌',interactive:true},
-            {x:325*scale,y:380*scale,w:32*scale,h:32*scale,type:'chair',name:'椅子',interactive:true},
-            {x:453*scale,y:380*scale,w:32*scale,h:32*scale,type:'chair',name:'椅子',interactive:true},
-            {x:325*scale,y:515*scale,w:32*scale,h:32*scale,type:'chair',name:'椅子',interactive:true},
-            {x:453*scale,y:515*scale,w:32*scale,h:32*scale,type:'chair',name:'椅子',interactive:true},
-            {x:140*scale,y:320*scale,w:45*scale,h:45*scale,type:'plant',name:'盆栽',interactive:true},
-            {x:690*scale,y:460*scale,w:55*scale,h:55*scale,type:'box',name:'箱子',interactive:true},
-        );
-    } else if(scheme===1){ // B: 沙发+茶几
-        cf.push(
-            {x:90*scale,y:380*scale,w:160*scale,h:65*scale,type:'sofa',name:'沙发',interactive:true},
-            {x:140*scale,y:490*scale,w:90*scale,h:55*scale,type:'coffeeTable',name:'茶几',interactive:true},
-            {x:640*scale,y:330*scale,w:45*scale,h:45*scale,type:'plant',name:'盆栽',interactive:true},
-            {x:700*scale,y:540*scale,w:55*scale,h:65*scale,type:'cart',name:'餐车',interactive:true},
-            {x:380*scale,y:700*scale,w:55*scale,h:55*scale,type:'box',name:'箱子',interactive:true},
-        );
-    } else { // C: 散布
-        cf.push(
-            {x:90*scale,y:280*scale,w:85*scale,h:85*scale,type:'sofa',name:'沙发',interactive:true},
-            {x:280*scale,y:380*scale,w:85*scale,h:55*scale,type:'coffeeTable',name:'茶几',interactive:true},
-            {x:590*scale,y:280*scale,w:45*scale,h:45*scale,type:'plant',name:'盆栽',interactive:true},
-            {x:480*scale,y:580*scale,w:55*scale,h:55*scale,type:'box',name:'箱子',interactive:true},
-            {x:180*scale,y:680*scale,w:55*scale,h:55*scale,type:'box',name:'箱子',interactive:true},
-            {x:640*scale,y:680*scale,w:55*scale,h:55*scale,type:'box',name:'箱子',interactive:true},
-            {x:380*scale,y:230*scale,w:45*scale,h:45*scale,type:'plant',name:'盆栽',interactive:true},
-        );
+    if(isL1){
+        if(scheme===0){ // A: 餐桌中央
+            cf.push(
+                {x:240,y:380,w:130,h:85,type:'table',name:'餐桌',interactive:true},
+                {x:225,y:340,w:32, h:32,type:'chair',name:'椅子',interactive:true},
+                {x:358,y:340,w:32, h:32,type:'chair',name:'椅子',interactive:true},
+                {x:225,y:475,w:32, h:32,type:'chair',name:'椅子',interactive:true},
+                {x:358,y:475,w:32, h:32,type:'chair',name:'椅子',interactive:true},
+                {x:50, y:280,w:45, h:45,type:'plant',name:'盆栽',interactive:true},
+                {x:500,y:420,w:55, h:55,type:'box',name:'箱子',interactive:true},
+            );
+        } else if(scheme===1){ // B: 沙发+茶几
+            cf.push(
+                {x:50, y:340,w:160,h:65,type:'sofa',name:'沙发',interactive:true},
+                {x:100,y:450,w:90, h:55,type:'coffeeTable',name:'茶几',interactive:true},
+                {x:500,y:280,w:45, h:45,type:'plant',name:'盆栽',interactive:true},
+                {x:520,y:500,w:55, h:65,type:'cart',name:'餐车',interactive:true},
+                {x:280,y:650,w:55, h:55,type:'box',name:'箱子',interactive:true},
+            );
+        } else { // C: 散布
+            cf.push(
+                {x:50, y:240,w:85,h:85,type:'sofa',name:'沙发',interactive:true},
+                {x:220,y:320,w:85,h:55,type:'coffeeTable',name:'茶几',interactive:true},
+                {x:500,y:240,w:45,h:45,type:'plant',name:'盆栽',interactive:true},
+                {x:400,y:520,w:55,h:55,type:'box',name:'箱子',interactive:true},
+                {x:120,y:620,w:55,h:55,type:'box',name:'箱子',interactive:true},
+                {x:500,y:620,w:55,h:55,type:'box',name:'箱子',interactive:true},
+                {x:320,y:180,w:45,h:45,type:'plant',name:'盆栽',interactive:true},
+            );
+        }
+    } else {
+        if(scheme===0){
+            cf.push(
+                {x:340,y:420,w:130,h:85,type:'table',name:'餐桌',interactive:true},
+                {x:325,y:380,w:32, h:32,type:'chair',name:'椅子',interactive:true},
+                {x:453,y:380,w:32, h:32,type:'chair',name:'椅子',interactive:true},
+                {x:325,y:515,w:32, h:32,type:'chair',name:'椅子',interactive:true},
+                {x:453,y:515,w:32, h:32,type:'chair',name:'椅子',interactive:true},
+                {x:140,y:320,w:45, h:45,type:'plant',name:'盆栽',interactive:true},
+                {x:690,y:460,w:55, h:55,type:'box',name:'箱子',interactive:true},
+            );
+        } else if(scheme===1){
+            cf.push(
+                {x:90, y:380,w:160,h:65,type:'sofa',name:'沙发',interactive:true},
+                {x:140,y:490,w:90, h:55,type:'coffeeTable',name:'茶几',interactive:true},
+                {x:640,y:330,w:45, h:45,type:'plant',name:'盆栽',interactive:true},
+                {x:700,y:540,w:55, h:65,type:'cart',name:'餐车',interactive:true},
+                {x:380,y:700,w:55, h:55,type:'box',name:'箱子',interactive:true},
+            );
+        } else {
+            cf.push(
+                {x:90, y:280,w:85,h:85,type:'sofa',name:'沙发',interactive:true},
+                {x:280,y:380,w:85,h:55,type:'coffeeTable',name:'茶几',interactive:true},
+                {x:590,y:280,w:45,h:45,type:'plant',name:'盆栽',interactive:true},
+                {x:480,y:580,w:55,h:55,type:'box',name:'箱子',interactive:true},
+                {x:180,y:680,w:55,h:55,type:'box',name:'箱子',interactive:true},
+                {x:640,y:680,w:55,h:55,type:'box',name:'箱子',interactive:true},
+                {x:380,y:230,w:45,h:45,type:'plant',name:'盆栽',interactive:true},
+            );
+        }
     }
     cf.forEach(f=>G.furniture.push({...f,hitCount:0,maxHits:3,gray:false}));
 
     // 食物
     const lv=LEVELS[lid-1], cnt=lv.food;
-    const cands = [
-        {x:200*scale,y:120*scale},{x:500*scale,y:110*scale},{x:750*scale,y:180*scale},
-        {x:140*scale,y:580*scale},{x:450*scale,y:300*scale},{x:600*scale,y:420*scale},
-        {x:300*scale,y:780*scale},{x:500*scale,y:720*scale},{x:750*scale,y:620*scale},
-        {x:100*scale,y:880*scale},{x:380*scale,y:870*scale},{x:700*scale,y:800*scale},
-        {x:200*scale,y:1020*scale},{x:500*scale,y:960*scale},{x:700*scale,y:960*scale},
-        {x:140*scale,y:1120*scale},{x:400*scale,y:1080*scale},{x:650*scale,y:1060*scale},
-        {x:300*scale,y:580*scale},{x:550*scale,y:520*scale},
+    const cands = isL1 ? [
+        {x:140,y:110},{x:400,y:100},{x:530,y:160},
+        {x:100,y:520},{x:350,y:280},{x:480,y:380},
+        {x:240,y:720},{x:400,y:660},{x:530,y:560},
+        {x:80, y:800},{x:300,y:800},{x:500,y:760},
+        {x:240,y:580},{x:450,y:480},
+    ] : [
+        {x:200,y:120},{x:500,y:110},{x:750,y:180},
+        {x:140,y:580},{x:450,y:300},{x:600,y:420},
+        {x:300,y:780},{x:500,y:720},{x:750,y:620},
+        {x:100,y:880},{x:380,y:870},{x:700,y:800},
+        {x:200,y:1020},{x:500,y:960},{x:700,y:960},
+        {x:140,y:1120},{x:400,y:1080},{x:650,y:1060},
+        {x:300,y:580},{x:550,y:520},
     ];
     const sh = [...cands].sort(()=>Math.random()-0.5);
     for(let i=0;i<Math.min(cnt,sh.length);i++){
@@ -295,7 +341,9 @@ function createCat(){
     const r=Math.random();
     let st,tm;
     if(r<0.4){st='sleeping';tm=10;}else if(r<0.8){st='lazy';tm=8;}else{st='patrol';tm=0;}
-    const starts=[{x:600,y:280},{x:200,y:380},{x:700,y:460},{x:400,y:320}];
+    const starts = G.currentLevel === 1 ?
+        [{x:420,y:200},{x:140,y:280},{x:480,y:320},{x:280,y:240}] :
+        [{x:600,y:280},{x:200,y:380},{x:700,y:460},{x:400,y:320}];
     const sp=starts[randInt(0,starts.length-1)];
     return {
         x:sp.x, y:sp.y, r:18, speed:DIFFICULTY.catBaseSpeed, dir:0,
@@ -1173,7 +1221,8 @@ function startLevel(lid){
         }
     }
     G.camera.targetX=G.mapW/2; G.camera.targetY=G.mapH/2;
-    G.camera.zoom=0.35; G.camera.x=G.ratHole.x; G.camera.y=G.ratHole.y;
+    const opZoom = (G.currentLevel===1) ? 0.55 : 0.35;
+    G.camera.zoom=opZoom; G.camera.x=G.ratHole.x; G.camera.y=G.ratHole.y;
     G.tutorial={active:false,step:0,timer:0,text:''};
 }
 function startAction(){
@@ -1221,7 +1270,8 @@ function updateOpening(dt){
     G.openingTimer+=dt;
     const isL1=G.currentLevel===1;
     if(G.openingTimer<3.0){
-        G.camera.targetX=G.mapW/2; G.camera.targetY=G.mapH/2; G.camera.targetZoom=0.35;
+        G.camera.targetX=G.mapW/2; G.camera.targetY=G.mapH/2;
+        G.camera.targetZoom= isL1 ? 0.55 : 0.35;
         if(isL1) G.openingText='这是厨房，你的冒险开始之地~';
     } else if(G.openingTimer<5.0){
         if(G.foods.length){
