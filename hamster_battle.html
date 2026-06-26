@@ -59,7 +59,7 @@ const G = {
     openingText: '', // 第1关开场引导文字
     paused: false,
     touchJoy: { active: false, id: -1, startX: 0, startY: 0, dx: 0, dy: 0 },
-    selectedTrap: null, alertValue: 0,
+    selectedTrap: null, alertValue: 0, selectedBananaTrap: false,
     animFrame: 0, bestStars: {},
 };
 
@@ -132,8 +132,8 @@ const DIFFICULTY = {
 // ---- 数据 ----
 const LEVELS = [
     { id:1, name:'厨房', food:1, catSpeed:1.2, alertSpeed:0.4, energy:5, traps:[] },
-    { id:2, name:'客厅', food:5, catSpeed:1.4, alertSpeed:0.5, energy:6, traps:['banana'] },
-    { id:3, name:'餐厅', food:7, catSpeed:1.6, alertSpeed:0.6, energy:7, traps:['banana','mousetrap'] },
+    { id:2, name:'客厅', food:3, catSpeed:1.4, alertSpeed:0.5, energy:6, traps:['banana'] },
+    { id:3, name:'餐厅', food:4, catSpeed:1.6, alertSpeed:0.6, energy:7, traps:['banana','mousetrap'] },
     { id:4, name:'卧室', food:9, catSpeed:1.8, alertSpeed:0.7, energy:7, traps:['banana','mousetrap'] },
     { id:5, name:'书房', food:11, catSpeed:2.0, alertSpeed:0.8, energy:8, traps:['banana','mousetrap','bucket'] },
     { id:6, name:'阁楼', food:14, catSpeed:2.2, alertSpeed:0.9, energy:8, traps:['banana','mousetrap','bucket'] },
@@ -146,6 +146,84 @@ const TRAP_DATA = {
     bucket:    { name:'水桶',   energy:2, stun:3.0, icon:'🪣' },
     pot:       { name:'花盆',   energy:3, stun:4.0, icon:'🪴' },
 };
+
+// ============================================================
+// 音效系统 (WebAudio生成)
+// ============================================================
+const SFX = {
+    ctx: null,
+    init() {
+        try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+    },
+    play(type) {
+        if(!this.ctx) return;
+        try {
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            switch(type) {
+                case 'collect':
+                    osc.frequency.setValueAtTime(523, now);
+                    osc.frequency.linearRampToValueAtTime(784, now+0.1);
+                    osc.frequency.linearRampToValueAtTime(1047, now+0.2);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0, now+0.3);
+                    osc.start(now); osc.stop(now+0.3);
+                    break;
+                case 'alert':
+                    osc.frequency.setValueAtTime(330, now);
+                    osc.frequency.linearRampToValueAtTime(220, now+0.2);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.linearRampToValueAtTime(0, now+0.3);
+                    osc.start(now); osc.stop(now+0.3);
+                    break;
+                case 'hit':
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(200, now);
+                    osc.frequency.linearRampToValueAtTime(80, now+0.15);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0, now+0.2);
+                    osc.start(now); osc.stop(now+0.2);
+                    break;
+                case 'stun':
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(400, now);
+                    osc.frequency.linearRampToValueAtTime(150, now+0.3);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0, now+0.4);
+                    osc.start(now); osc.stop(now+0.4);
+                    break;
+                case 'win':
+                    osc.frequency.setValueAtTime(523, now);
+                    osc.frequency.linearRampToValueAtTime(659, now+0.15);
+                    osc.frequency.linearRampToValueAtTime(784, now+0.3);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0, now+0.5);
+                    osc.start(now); osc.stop(now+0.5);
+                    break;
+                case 'lose':
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.linearRampToValueAtTime(100, now+0.4);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.linearRampToValueAtTime(0, now+0.5);
+                    osc.start(now); osc.stop(now+0.5);
+                    break;
+                case 'powerup':
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.linearRampToValueAtTime(880, now+0.15);
+                    osc.frequency.linearRampToValueAtTime(1320, now+0.3);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0, now+0.35);
+                    osc.start(now); osc.stop(now+0.35);
+                    break;
+            }
+        } catch(e) {}
+    }
+};
+
 const FOOD_TYPES = [
     { name:'坚果', icon:'🥜', img:'food_nut' }, { name:'奶酪', icon:'🧀', img:'food_cheese' },
     { name:'葡萄', icon:'🍇', img:'food_grape' }, { name:'草莓', icon:'🍓', img:'food_strawberry' },
@@ -197,7 +275,7 @@ function isInCatVisionCone(c,h){
     let diff = targetAngle - catAngle;
     while(diff > Math.PI) diff -= Math.PI*2;
     while(diff < -Math.PI) diff += Math.PI*2;
-    return Math.abs(diff) < Math.PI*70/180; // 70度扇形（100度缩小30%）
+    return Math.abs(diff) < Math.PI*56/180; // 56度扇形（70度缩小20%）
 }
 function pushOut(cx,cy,cr,rx,ry,rw,rh){
     let nx=clamp(cx,rx,rx+rw), ny=clamp(cy,ry,ry+rh);
@@ -298,6 +376,16 @@ function generateMap(lid) {
             {x:18, y:wallY, w:34, h:65, side:'left'},   // 左侧窄道
             {x:G.mapW-18-33, y:wallY-5, w:33, h:85, side:'right'}, // 右侧窄道
         ];
+    } else if(lid===2){
+        // 第二关客厅布局：L型沙发+茶几+盆栽
+        cf.push(
+            {x:120,y:350,w:200,h:65,type:'sofa',name:'沙发',interactive:true},
+            {x:120,y:415,w:65,h:120,type:'sofa',name:'沙发',interactive:true},
+            {x:200,y:480,w:120,h:60,type:'coffeeTable',name:'茶几',interactive:true},
+            {x:550,y:300,w:45,h:45,type:'plant',name:'盆栽',interactive:true},
+            {x:650,y:500,w:55,h:65,type:'cart',name:'餐车',interactive:true},
+            {x:400,y:650,w:55,h:55,type:'box',name:'箱子',interactive:true},
+        );
     } else {
         if(scheme===0){
             cf.push(
@@ -353,6 +441,16 @@ function generateMap(lid) {
         G.foods.push({x:fx, y:fy, type:FOOD_TYPES[i%FOOD_TYPES.length], collected:false, stealing:false, stealProgress:0});
     }
     G.foodTarget = cnt;
+
+    // 道具
+    G.powerups = [];
+    if(G.currentLevel <= 2){
+        G.powerups.push({x: G.mapW/2, y: G.mapH/2, type:'dash', collected:false});
+    }
+    if(G.currentLevel === 3){
+        G.powerups.push({x: G.mapW/2-60, y: G.mapH/2, type:'dash', collected:false});
+        G.powerups.push({x: G.mapW/2+60, y: G.mapH/2, type:'dash', collected:false});
+    }
 }
 
 // ============================================================
@@ -366,6 +464,7 @@ function createHamster(){
         visible:true, invincible:0, face:'normal', animT:0,
         failAnim:'main', failTimer:0, failVariant:0, // 失败动画交替
         speedBoost:0, speedBoostTimer:0, // 加速逃脱
+        dashVx:0, dashVy:0, dashSpeed:0, trail:[],
     };
 }
 function createCat(){
@@ -495,7 +594,8 @@ function updateCat(dt){
     c.lastState = c.state; // 记录上一帧状态用于检测状态变化
 
     // 卡住检测：猫1.5秒内移动距离<15px，强制重新找路
-    if(c.state==='patrol' || c.state==='chase' || c.state==='alert' || c.state==='stunned' || c.state==='confused' || c.state==='surprised' || c.state==='freeze'){
+    if(c.state==='patrol' || c.state==='chase' || c.state==='alert' || c.state==='stunned' || c.state==='confused' || c.state==='surprised' || c.state==='freeze' || c.state==='lazy'){
+        // 注意：不包含 'sleeping' - 睡觉时跳过卡住检测
         const dx=c.x-c.stuckX, dy=c.y-c.stuckY;
         c.stuckTimer += dt;
         if(c.stuckTimer > 1.5){
@@ -817,6 +917,7 @@ function updateCat(dt){
                 const stun=getStunTime(f);
                 if(stun>0 && isFullSpeed && c.state==='chase' && d > 80){
                     c.state='stunned'; c.stunTimer=stun;
+                    SFX.play('stun');
                     c.alertValue=Math.max(0,c.alertValue-20);
                     G.catHits++; f.hitCount=(f.hitCount||0)+1;
                     if(f.hitCount>=3) f.gray=true;
@@ -836,13 +937,14 @@ function updateCat(dt){
                     c.curSpd *= 0.5;
                     c.collCooldown = 0.05;
                 } else {
-                    // 不眩晕：推出 + 减速 + 沿边滑行（防哆嗦）
-                    const p=pushOut(c.x,c.y,c.r+12,f.x,f.y,f.w,f.h);
-                    const pdx=p.x-c.x, pdy=p.y-c.y;
+                    // 不眩晕：推出 + 减速，不反弹只转向
+                    const oldX=c.x, oldY=c.y;
+                    const p=pushOut(c.x,c.y,c.r+5,f.x,f.y,f.w,f.h);
+                    const pdx=p.x-oldX, pdy=p.y-oldY;
                     c.x=p.x; c.y=p.y;
-                    c.curSpd *= 0.5;
-                    c.collCooldown = c.state==='patrol' ? 0.3 : 0.2; // 巡逻时冷却更长，避免反复碰撞抖动
-                    // 推出方向设为滑行方向（沿家具边缘走，不要来回弹）
+                    c.curSpd *= 0.3;
+                    c.collCooldown = c.state==='patrol' ? 0.4 : 0.25;
+                    // 转向：沿家具表面切向滑行，不反弹
                     if(Math.hypot(pdx,pdy)>0.01){
                         // 法向量（远离家具）
                         const nLen=Math.hypot(pdx,pdy);
@@ -882,8 +984,8 @@ function updateCat(dt){
             }
         }
     }
-    // 墙壁碰撞 - 所有状态都做墙壁滑行，全速时更顺滑
-    if(c.collCooldown<=0){
+    // 墙壁碰撞 - 所有状态都做墙壁滑行（sleeping除外）
+    if(c.collCooldown<=0 && c.state!=='sleeping'){
         for(let w of G.walls){
             if(circRectHit(c.x,c.y,c.r+2,w.x,w.y,w.w,w.h)){
                 const p=pushOut(c.x,c.y,c.r+3,w.x,w.y,w.w,w.h);
@@ -1154,8 +1256,12 @@ function updateCatImg(c, dt){
         c.catImg = updateAlternating(c, dt, ['catAlert1','catAlert2'], ['catAlert1','catAlert2'], 2.5, 4.5, 0.8, 1.2);
         break;
     case 'confused':
-        // 保持happy（抓到老鼠后）或回normal
-        if(c.catImg==='catHappy') break;
+        // 抓到老鼠后开心表情持续3秒后恢复警戒
+        if(c.catImg==='catHappy'){
+            c.happyTimer = (c.happyTimer || 0) + dt;
+            if(c.happyTimer > 3.0){ c.catImg='catNormal'; c.happyTimer=0; }
+            break;
+        }
         c.catImg='catNormal'; break;
     default:
         // patrol/lazy等：如果上次撞过显示生气，否则normal
@@ -1169,6 +1275,7 @@ function updateCatImg(c, dt){
 }
 
 function catCatchHamster(){
+    SFX.play('hit');
     G.lives--;
     const h=G.hamster, c=G.cat;
     // 计算撞飞方向（从猫指向老鼠）
@@ -1316,6 +1423,7 @@ function onMouseUp(){
 }
 
 function processTap(x,y,touchId){
+    if(!SFX.ctx) SFX.init();
     if(G.scene==='logo'){G.scene='menu';return;}
     if(G.scene==='menu'){
         if(btnHit(G.W/2-85,400,170,55,x,y)) G.scene='levelSelect';
@@ -1373,6 +1481,24 @@ function processTap(x,y,touchId){
         }
         return;
     }
+    // 行动阶段 - 香蕉皮放置
+    if(G.scene==='game' && G.state==='action' && G.bananaCount > 0){
+        const bbx=G.W-90, bby=G.H-80;
+        if(btnHit(bbx,bby,80,55,x,y)){
+            G.selectedBananaTrap = !G.selectedBananaTrap;
+            return;
+        }
+        if(G.selectedBananaTrap){
+            const wx=G.camera.x+(x-G.W/2)/G.camera.zoom;
+            const wy=G.camera.y+(y-G.H/2)/G.camera.zoom;
+            if(wx>30&&wx<G.mapW-30&&wy>30&&wy<G.mapH-30){
+                G.bananaCount--;
+                G.placedTraps.push({x:wx,y:wy,type:'banana'});
+                G.selectedBananaTrap=false;
+            }
+            return;
+        }
+    }
     // 行动阶段 - 摇杆（底部中间区域触发）
     if(G.scene==='game' && G.state==='action' && y>G.H*0.65){
         G.touchJoy.active=true;
@@ -1389,8 +1515,8 @@ function startLevel(lid){
     G.currentLevel=lid; G.scene='game'; G.state='opening';
     G.openingTimer=0; G.lives=3; G.foodCollected=0;
     G.foodDropped=[]; G.catHits=0; G.shakeTimer=0; G.redFlash=0;
-    G.alertValue=0; G.paused=false; G.selectedTrap=null; G.countdown=-1;
-    G.narrowGaps=[]; G.sageHint=null;
+    G.alertValue=0; G.paused=false; G.selectedTrap=null; G.countdown=-1; G.selectedBananaTrap=false;
+    G.narrowGaps=[]; G.sageHint=null; G.powerups=[]; G.bananaTraps=[]; G.bananaCount=(lid===3)?2:0;
     const lv=LEVELS[lid-1];
     G.energy=lv.energy; G.maxEnergy=lv.energy;
     generateMap(lid);
@@ -1448,6 +1574,7 @@ function startAction(){
     }
 }
 function endGame(won){
+    SFX.play(won ? 'win' : 'lose');
     G.state='result'; G.scene='result';
     if(won){
         G.stars=G.lives;
@@ -1572,9 +1699,49 @@ function updateAction(dt){
         h.moving=true;
         h.x+=mx*curSpeed*60*dt; h.y+=my*curSpeed*60*dt;
         h.dir=Math.abs(mx)>Math.abs(my)?(mx>0?3:2):(my>0?0:1);
-    } else h.moving=false;
+        // 更新拖尾
+        if(!h.trail) h.trail=[];
+        if(h.moving){
+            h.trail.unshift({x:h.x,y:h.y});
+            if(h.trail.length>8) h.trail.pop();
+        } else {
+            if(h.trail.length>0) h.trail.pop();
+        }
+    } else {
+        h.moving=false;
+        if(h.trail && h.trail.length>0) h.trail.pop();
+    }
     // 加速计时递减
     if(h.speedBoostTimer>0) h.speedBoostTimer-=dt;
+
+    // 道具检测
+    for(let pw of G.powerups){
+        if(!pw.collected && dist(h, pw) < h.r + 16){
+            pw.collected = true;
+            SFX.play('powerup');
+            if(pw.type === 'dash'){
+                // 向当前移动方向冲刺飞一段
+                h.speedBoostTimer = 0.5;
+                if(Math.abs(h.vx)>0.01 || Math.abs(h.vy)>0.01){
+                    h.dashVx = h.vx; h.dashVy = h.vy;
+                } else {
+                    h.dashVx = h.dir===3?1:h.dir===1?-1:0;
+                    h.dashVy = h.dir===0?1:h.dir===2?-1:0;
+                }
+                h.dashSpeed = 250;
+                G.floatTexts.push({x:h.x,y:h.y-20,text:'冲刺!',timer:1.0,maxTimer:1.0,color:'#00FFFF'});
+            }
+        }
+    }
+    // 冲刺更新
+    if(h.speedBoostTimer > 0 && h.dashSpeed > 0){
+        h.speedBoostTimer -= dt;
+        h.x += h.dashVx * h.dashSpeed * dt;
+        h.y += h.dashVy * h.dashSpeed * dt;
+        // 边界限制
+        h.x = clamp(h.x, h.r+10, G.mapW-h.r-10);
+        h.y = clamp(h.y, h.r+10, G.mapH-h.r-10);
+    }
 
     // 碰撞
     for(let w of G.walls){
@@ -1606,18 +1773,17 @@ function updateAction(dt){
             h.stealProgress+=dt*1.2;
             if(h.stealProgress>=1){
                 td.collected=true; td.stealing=false;
-                G.foodCollected++; h.stealing=false; h.stealTarget=null;
+                G.foodCollected++; SFX.play('collect'); h.stealing=false; h.stealTarget=null;
                 G.floatTexts.push({x:h.x,y:h.y-20,text:`+${G.foodCollected}`,timer:1.2,maxTimer:1.2,color:'#FFD700'});
                 h.stealProgress=0; h.face='happy';
                 setTimeout(()=>{if(G.hamster) G.hamster.face='normal';},1000);
-                // 第一关：偷到食物后猫立马惊醒！
-                if(G.currentLevel===1 && G.cat && G.cat.state==='sleeping'){
+                // 偷到食物后猫立马惊醒（所有关卡）
+                if(G.cat && G.cat.state==='sleeping'){
                     G.cat.state='surprised';
                     G.cat.face='surprised';
                     G.cat.surprisedTimer=2.0;
                     G.cat.catImg='catSurprise';
                     G.sageHint={text:'猫醒了！快跑！',timer:3.0};
-                    // 不再启动引导教程
                 }
             }
         } else {
@@ -1631,6 +1797,7 @@ function updateAction(dt){
     for(let i=G.foodDropped.length-1;i>=0;i--){
         if(dist(h,G.foodDropped[i])<h.r+16){
             G.foodCollected++;
+            SFX.play('collect');
             G.floatTexts.push({x:h.x,y:h.y-20,text:`+${G.foodCollected}`,timer:1.2,maxTimer:1.2,color:'#FFD700'});
             G.foodDropped.splice(i,1);
         }
@@ -1662,10 +1829,7 @@ function updateAction(dt){
         }
     }
 
-    // 仙人近距离提示：猫靠近时提示躲避（只在无提示时触发，避免乱闪）
-    if(!G.sageHint && c && (c.state==='chase' || c.state==='alert') && dist(h,c) < 200){
-        G.sageHint = { text: '快躲到家具后面！', timer: 2.0 };
-    }
+    // 仙人近距离提示（已移除"快躲到家具后面！"）
     if(G.sageHint){
         G.sageHint.timer -= dt;
         if(G.sageHint.timer <= 0) G.sageHint = null;
@@ -1859,6 +2023,7 @@ function drawGame(sx,sy){
     drawRatHole();
     for(let f of G.furniture) drawFurniture(f);
     for(let food of G.foods) if(!food.collected) drawFood(food);
+    drawPowerups();
     // 食物范围圈提示
     if(G.hamster){
         for(let food of G.foods){
@@ -2018,6 +2183,17 @@ function drawActionUI(){
         ctx.globalAlpha=1;
     }
 
+    // 香蕉皮按钮（第三关）
+    if(G.bananaCount > 0 && G.state==='action'){
+        const bbx=G.W-90, bby=G.H-80;
+        ctx.fillStyle='rgba(0,0,0,0.6)'; rRect(bbx,bby,80,55,10); ctx.fill();
+        ctx.strokeStyle=C.gold; ctx.lineWidth=2; rRect(bbx,bby,80,55,10); ctx.stroke();
+        ctx.font='22px serif'; ctx.textAlign='center';
+        ctx.fillText('🍌',bbx+40,bby+22);
+        ctx.fillStyle='#FFF'; ctx.font='11px sans-serif';
+        ctx.fillText('香蕉皮x'+G.bananaCount,bbx+40,bby+44);
+    }
+
     // 食物指引箭头 - 指向最近未收集食物
     {
         let nearest = null, minD = Infinity;
@@ -2063,7 +2239,7 @@ function drawOpeningUI(){
     if(G.openingText){
         // 仙人图片在上方，放大一倍
         const sageH = 160, sageW = 160;
-        const sageX = G.W/2 - 100, sageY = G.H - 140; // 往左下100, 往上移50
+        const sageX = G.W/2 - 100, sageY = G.H - 130; // 往左下100, 往上移50
         if(IMAGES.sage && IMAGES.sage.complete){
             ctx.drawImage(IMAGES.sage, sageX-sageW/2, sageY-sageH, sageW, sageH);
         } else {
@@ -2214,8 +2390,8 @@ function drawFood(food,dropped){
     }
     ctx.globalAlpha=1;
     if(food.stealing && G.hamster && G.hamster.stealTarget===food){
-        ctx.strokeStyle=C.gold; ctx.lineWidth=3;
-        ctx.beginPath(); ctx.arc(food.x,food.y,16,-Math.PI/2,-Math.PI/2+Math.PI*2*G.hamster.stealProgress);
+        ctx.strokeStyle=C.gold; ctx.lineWidth=4;
+        ctx.beginPath(); ctx.arc(food.x,food.y,28,-Math.PI/2,-Math.PI/2+Math.PI*2*G.hamster.stealProgress);
         ctx.stroke();
     }
 }
@@ -2226,9 +2402,41 @@ function drawPlacedTrap(tr){
     ctx.strokeStyle='rgba(255,215,0,0.5)'; ctx.lineWidth=2;
     ctx.beginPath(); ctx.arc(tr.x,tr.y,15,0,Math.PI*2); ctx.stroke();
 }
+function drawPowerups(){
+    for(let pw of G.powerups){
+        if(pw.collected) continue;
+        ctx.save(); ctx.translate(pw.x, pw.y);
+        // 闪烁效果
+        const glow = 0.6 + 0.4*Math.sin(G.time*4);
+        ctx.globalAlpha = glow;
+        if(pw.type==='dash'){
+            ctx.fillStyle='#00CED1';
+            ctx.beginPath(); ctx.arc(0,0,14,0,Math.PI*2); ctx.fill();
+            ctx.strokeStyle='#00FFFF'; ctx.lineWidth=2;
+            ctx.beginPath(); ctx.arc(0,0,14,0,Math.PI*2); ctx.stroke();
+            ctx.fillStyle='#FFF'; ctx.font='bold 12px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText('\u26A1',0,1);
+        }
+        ctx.restore();
+    }
+}
 function drawHamsterChar(){
     const h=G.hamster;
     if(h.invincible>0 && Math.floor(G.time*10)%2===0) return;
+    // 老鼠移动拖尾
+    if(h.moving && h.trail) {
+        ctx.globalAlpha = 0.15;
+        for(let i=0;i<h.trail.length;i++){
+            const t=h.trail[i];
+            const alpha = 0.15 * (1 - i/h.trail.length);
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = C.hamsterBody;
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, h.r * (1 - i/h.trail.length * 0.3), 0, Math.PI*2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+    }
     drawHamsterSprite(h.x,h.y,h.r,h.face,h.dir);
     // 脚底食物格（能量格样式，带食物图标）
     if(G.foodTarget > 0){
@@ -2339,7 +2547,7 @@ function drawHamsterSprite(x,y,r,face,dir){
 }
 function drawCat(){
     const c=G.cat;
-    // 猫视野锥（扇形区域）：100px距离，100度
+    // 猫视野锥（扇形区域）：100px距离，56度
     if(c.state!=='sleeping' && c.state!=='surprised' && c.state!=='freeze'){
         // 平滑视野角度：使用target方向避免抖动
         const targetAngle = Math.atan2(c.targetVy || c.vy, c.targetVx || c.vx);
@@ -2348,11 +2556,11 @@ function drawCat(){
         c._smoothAngle = normalizeAngle(c._smoothAngle + diff * 0.15); // 平滑过渡
         const catAngle = c._smoothAngle;
         const coneDist = 100;
-        const coneAngle = Math.PI*70/180; // 70度（100度缩小30%）
+        const coneAngle = Math.PI*56/180; // 56度（70度缩小20%）
         // 扇形填充
         ctx.save();
-        ctx.globalAlpha = c.state==='chase' ? 0.25 : 0.15;
-        ctx.fillStyle = c.state==='chase' ? '#FF4444' : '#FFA500';
+        ctx.globalAlpha = c.state==='chase' ? 0.25 : 0.20;
+        ctx.fillStyle = c.state==='chase' ? '#FF2222' : '#FF6600';
         ctx.beginPath();
         ctx.moveTo(c.x, c.y);
         ctx.arc(c.x, c.y, coneDist, catAngle-coneAngle, catAngle+coneAngle);
