@@ -89,6 +89,21 @@ function loadImages(){
 }
 loadImages();
 
+// ---- 难度参数（后期可修改） ----
+const DIFFICULTY = {
+    hamsterBaseSpeed: 1.68,      // 老鼠基础速度
+    hamsterSpeedBoost: 2.5,      // 被抓后加速倍率
+    hamsterBoostDuration: 3.0,   // 加速持续时间(秒)
+    catBaseSpeed: 1.68,          // 猫基础速度（=老鼠速度）
+    catChaseMultiplier: 1.0,     // 追逐速度倍率（1.0 = 和老鼠一样快）
+    catPatrolMultiplier: 0.8,    // 巡逻速度倍率
+    catAccel: 6.0,               // 猫加速度
+    catDecel: 2.5,               // 猫减速度
+    catBaseTurnRate: 5.0,        // 基础转向速率
+    catStunDecay: 0.5,           // 每次眩晕时间衰减倍率
+    level1RoomScale: 0.7,        // 第1关房间缩放(70%=缩小30%)
+};
+
 // ---- 数据 ----
 const LEVELS = [
     { id:1, name:'厨房', food:3, catSpeed:1.2, alertSpeed:0.4, energy:5, traps:[] },
@@ -188,24 +203,25 @@ function canvasCoord(clientX, clientY) {
 // 地图生成
 // ============================================================
 function generateMap(lid) {
-    G.mapW = 900; G.mapH = 1300;
+    const scale = (lid===1) ? DIFFICULTY.level1RoomScale : 1.0;
+    G.mapW = Math.floor(900 * scale); G.mapH = Math.floor(1300 * scale);
     G.walls = []; G.furniture = []; G.foods = [];
     G.placedTraps = []; G.furnitureHits = {};
-    const T = 18;
+    const T = Math.max(8, Math.floor(18 * scale));
     G.walls.push(
         {x:0,y:0,w:G.mapW,h:T},{x:0,y:G.mapH-T,w:G.mapW,h:T},
         {x:0,y:0,w:T,h:G.mapH},{x:G.mapW-T,y:0,w:T,h:G.mapH}
     );
-    G.ratHole = { x: G.mapW/2, y: G.mapH-35, r: 24 };
+    G.ratHole = { x: G.mapW/2, y: G.mapH-35*scale, r: 24 };
 
     // 靠墙家具
     const wf = [
-        {x:35,y:35,w:110,h:65,type:'fridge',name:'冰箱',interactive:false},
-        {x:200,y:35,w:130,h:55,type:'stove',name:'灶台',interactive:false},
-        {x:410,y:35,w:110,h:55,type:'counter',name:'料理台',interactive:false},
-        {x:680,y:35,w:90,h:70,type:'cabinet',name:'柜子',interactive:false},
-        {x:35,y:G.mapH-95,w:110,h:55,type:'cabinet2',name:'柜子',interactive:false},
-        {x:720,y:G.mapH-95,w:110,h:55,type:'catbed',name:'猫窝',interactive:false},
+        {x:35*scale,y:35*scale,w:110*scale,h:65*scale,type:'fridge',name:'冰箱',interactive:false},
+        {x:200*scale,y:35*scale,w:130*scale,h:55*scale,type:'stove',name:'灶台',interactive:false},
+        {x:410*scale,y:35*scale,w:110*scale,h:55*scale,type:'counter',name:'料理台',interactive:false},
+        {x:680*scale,y:35*scale,w:90*scale,h:70*scale,type:'cabinet',name:'柜子',interactive:false},
+        {x:35*scale,y:G.mapH-95*scale,w:110*scale,h:55*scale,type:'cabinet2',name:'柜子',interactive:false},
+        {x:720*scale,y:G.mapH-95*scale,w:110*scale,h:55*scale,type:'catbed',name:'猫窝',interactive:false},
     ];
     wf.forEach(f=>G.furniture.push({...f,hitCount:0,maxHits:3,gray:false}));
 
@@ -214,31 +230,31 @@ function generateMap(lid) {
     const cf = [];
     if(scheme===0){ // A: 餐桌中央
         cf.push(
-            {x:340,y:420,w:130,h:85,type:'table',name:'餐桌',interactive:true},
-            {x:325,y:380,w:32,h:32,type:'chair',name:'椅子',interactive:true},
-            {x:453,y:380,w:32,h:32,type:'chair',name:'椅子',interactive:true},
-            {x:325,y:515,w:32,h:32,type:'chair',name:'椅子',interactive:true},
-            {x:453,y:515,w:32,h:32,type:'chair',name:'椅子',interactive:true},
-            {x:140,y:320,w:45,h:45,type:'plant',name:'盆栽',interactive:true},
-            {x:690,y:460,w:55,h:55,type:'box',name:'箱子',interactive:true},
+            {x:340*scale,y:420*scale,w:130*scale,h:85*scale,type:'table',name:'餐桌',interactive:true},
+            {x:325*scale,y:380*scale,w:32*scale,h:32*scale,type:'chair',name:'椅子',interactive:true},
+            {x:453*scale,y:380*scale,w:32*scale,h:32*scale,type:'chair',name:'椅子',interactive:true},
+            {x:325*scale,y:515*scale,w:32*scale,h:32*scale,type:'chair',name:'椅子',interactive:true},
+            {x:453*scale,y:515*scale,w:32*scale,h:32*scale,type:'chair',name:'椅子',interactive:true},
+            {x:140*scale,y:320*scale,w:45*scale,h:45*scale,type:'plant',name:'盆栽',interactive:true},
+            {x:690*scale,y:460*scale,w:55*scale,h:55*scale,type:'box',name:'箱子',interactive:true},
         );
     } else if(scheme===1){ // B: 沙发+茶几
         cf.push(
-            {x:90,y:380,w:160,h:65,type:'sofa',name:'沙发',interactive:true},
-            {x:140,y:490,w:90,h:55,type:'coffeeTable',name:'茶几',interactive:true},
-            {x:640,y:330,w:45,h:45,type:'plant',name:'盆栽',interactive:true},
-            {x:700,y:540,w:55,h:65,type:'cart',name:'餐车',interactive:true},
-            {x:380,y:700,w:55,h:55,type:'box',name:'箱子',interactive:true},
+            {x:90*scale,y:380*scale,w:160*scale,h:65*scale,type:'sofa',name:'沙发',interactive:true},
+            {x:140*scale,y:490*scale,w:90*scale,h:55*scale,type:'coffeeTable',name:'茶几',interactive:true},
+            {x:640*scale,y:330*scale,w:45*scale,h:45*scale,type:'plant',name:'盆栽',interactive:true},
+            {x:700*scale,y:540*scale,w:55*scale,h:65*scale,type:'cart',name:'餐车',interactive:true},
+            {x:380*scale,y:700*scale,w:55*scale,h:55*scale,type:'box',name:'箱子',interactive:true},
         );
     } else { // C: 散布
         cf.push(
-            {x:90,y:280,w:85,h:85,type:'sofa',name:'沙发',interactive:true},
-            {x:280,y:380,w:85,h:55,type:'coffeeTable',name:'茶几',interactive:true},
-            {x:590,y:280,w:45,h:45,type:'plant',name:'盆栽',interactive:true},
-            {x:480,y:580,w:55,h:55,type:'box',name:'箱子',interactive:true},
-            {x:180,y:680,w:55,h:55,type:'box',name:'箱子',interactive:true},
-            {x:640,y:680,w:55,h:55,type:'box',name:'箱子',interactive:true},
-            {x:380,y:230,w:45,h:45,type:'plant',name:'盆栽',interactive:true},
+            {x:90*scale,y:280*scale,w:85*scale,h:85*scale,type:'sofa',name:'沙发',interactive:true},
+            {x:280*scale,y:380*scale,w:85*scale,h:55*scale,type:'coffeeTable',name:'茶几',interactive:true},
+            {x:590*scale,y:280*scale,w:45*scale,h:45*scale,type:'plant',name:'盆栽',interactive:true},
+            {x:480*scale,y:580*scale,w:55*scale,h:55*scale,type:'box',name:'箱子',interactive:true},
+            {x:180*scale,y:680*scale,w:55*scale,h:55*scale,type:'box',name:'箱子',interactive:true},
+            {x:640*scale,y:680*scale,w:55*scale,h:55*scale,type:'box',name:'箱子',interactive:true},
+            {x:380*scale,y:230*scale,w:45*scale,h:45*scale,type:'plant',name:'盆栽',interactive:true},
         );
     }
     cf.forEach(f=>G.furniture.push({...f,hitCount:0,maxHits:3,gray:false}));
@@ -246,13 +262,13 @@ function generateMap(lid) {
     // 食物
     const lv=LEVELS[lid-1], cnt=lv.food;
     const cands = [
-        {x:200,y:120},{x:500,y:110},{x:750,y:180},
-        {x:140,y:580},{x:450,y:300},{x:600,y:420},
-        {x:300,y:780},{x:500,y:720},{x:750,y:620},
-        {x:100,y:880},{x:380,y:870},{x:700,y:800},
-        {x:200,y:1020},{x:500,y:960},{x:700,y:960},
-        {x:140,y:1120},{x:400,y:1080},{x:650,y:1060},
-        {x:300,y:580},{x:550,y:520},
+        {x:200*scale,y:120*scale},{x:500*scale,y:110*scale},{x:750*scale,y:180*scale},
+        {x:140*scale,y:580*scale},{x:450*scale,y:300*scale},{x:600*scale,y:420*scale},
+        {x:300*scale,y:780*scale},{x:500*scale,y:720*scale},{x:750*scale,y:620*scale},
+        {x:100*scale,y:880*scale},{x:380*scale,y:870*scale},{x:700*scale,y:800*scale},
+        {x:200*scale,y:1020*scale},{x:500*scale,y:960*scale},{x:700*scale,y:960*scale},
+        {x:140*scale,y:1120*scale},{x:400*scale,y:1080*scale},{x:650*scale,y:1060*scale},
+        {x:300*scale,y:580*scale},{x:550*scale,y:520*scale},
     ];
     const sh = [...cands].sort(()=>Math.random()-0.5);
     for(let i=0;i<Math.min(cnt,sh.length);i++){
@@ -267,10 +283,11 @@ function generateMap(lid) {
 function createHamster(){
     return {
         x:G.ratHole.x, y:G.ratHole.y,
-        r:14, speed:1.68, dir:0, moving:false,
+        r:14, speed:DIFFICULTY.hamsterBaseSpeed, dir:0, moving:false,
         stealing:false, stealTarget:null, stealProgress:0,
         visible:true, invincible:0, face:'normal', animT:0,
         failAnim:'main', failTimer:0, failVariant:0, // 失败动画交替
+        speedBoost:0, speedBoostTimer:0, // 加速逃脱
     };
 }
 function createCat(){
@@ -281,19 +298,20 @@ function createCat(){
     const starts=[{x:600,y:280},{x:200,y:380},{x:700,y:460},{x:400,y:320}];
     const sp=starts[randInt(0,starts.length-1)];
     return {
-        x:sp.x, y:sp.y, r:18, speed:lv.catSpeed, dir:0,
+        x:sp.x, y:sp.y, r:18, speed:DIFFICULTY.catBaseSpeed, dir:0,
         state:st, stateTimer:tm, alertValue:0,
         targetX:0, targetY:0, patrolPts:[], patrolIdx:0,
-        chaseSpeed:2.88, patrolSpeed:lv.catSpeed*0.8,
+        chaseSpeed:DIFFICULTY.catBaseSpeed * DIFFICULTY.catChaseMultiplier,
+        patrolSpeed:DIFFICULTY.catBaseSpeed * DIFFICULTY.catPatrolMultiplier,
         stunTimer:0, face:'normal', animT:0, wanderAngle:0,
         // 物理速度系统
         vx:0, vy:0,          // 当前速度向量（实际运动方向）
         targetVx:0, targetVy:0, // 目标方向（想去的方向）
         curSpd:0,            // 当前标量速度
         targetSpd:0,         // 目标速度
-        accel:6.0,           // 追逐加速度 (px/s^2)
-        decel:2.5,           // 自然减速度 (滑行)
-        baseTurnRate:5.0,    // 基础转向速率 (rad/s)
+        accel:DIFFICULTY.catAccel,           // 追逐加速度
+        decel:DIFFICULTY.catDecel,           // 自然减速度
+        baseTurnRate:DIFFICULTY.catBaseTurnRate,    // 基础转向速率
         chaseBuildup:0,      // 追逐蓄力计时
         chaseBuildupTime:1.0, // 动态加速总时间（由距离决定）
         lastState:'',        // 上一帧状态
@@ -932,12 +950,16 @@ function catCatchHamster(){
         remaining-=s;
     }
     h.invincible=2.5;
+    // 老鼠加速逃脱
+    h.speedBoost=DIFFICULTY.hamsterSpeedBoost;
+    h.speedBoostTimer=DIFFICULTY.hamsterBoostDuration;
+    // 食物掉落在被撞飞后的位置
     if(G.foodCollected>0){
         G.foodCollected--;
         G.foodDropped.push({x:h.x,y:h.y,type:FOOD_TYPES[randInt(0,FOOD_TYPES.length-1)]});
     }
     c.state='confused'; c.stateTimer=1.5; c.alertValue=0;
-    c.targetSpd=0; c.curSpd*=0.3;
+    c.targetSpd=0; c.curSpd*=0.3; // 抓到后减速滑行
     // 猫开心
     c.catImg='catHappy'; c.catImgTimer=0;
     // 混淆后方向设为远离老鼠
@@ -1158,9 +1180,9 @@ function startAction(){
     G.state='action'; G.actionTimer=0;
     G.camera.targetZoom=1.2;
     G.camera.targetX=G.hamster.x; G.camera.targetY=G.hamster.y;
-    // 第1关引导
+    // 第1关引导：等猫开始追时才弹
     if(G.currentLevel===1){
-        G.tutorial={active:true,step:0,timer:0,text:'靠近发光的家具，让它们帮你挡猫~',prevCatStunned:false};
+        G.tutorial={active:false, step:0, timer:0, text:'', prevCatStunned:false, waitChase:true};
     }
 }
 function endGame(won){
@@ -1255,11 +1277,15 @@ function updateAction(dt){
             if(Math.abs(mx)<0.01 && Math.abs(my)<0.01){ mx=kx; my=ky; }
         }
     }
+    const boostSpeed = h.speed * DIFFICULTY.hamsterSpeedBoost;
+    const curSpeed = h.speedBoostTimer > 0 ? boostSpeed : h.speed;
     if(Math.abs(mx)>0.01 || Math.abs(my)>0.01){
         h.moving=true;
-        h.x+=mx*h.speed*60*dt; h.y+=my*h.speed*60*dt;
+        h.x+=mx*curSpeed*60*dt; h.y+=my*curSpeed*60*dt;
         h.dir=Math.abs(mx)>Math.abs(my)?(mx>0?3:2):(my>0?0:1);
     } else h.moving=false;
+    // 加速计时递减
+    if(h.speedBoostTimer>0) h.speedBoostTimer-=dt;
 
     // 碰撞
     for(let w of G.walls){
@@ -1330,6 +1356,15 @@ function updateAction(dt){
 
 function updateTutorial(){
     const t=G.tutorial, h=G.hamster, c=G.cat;
+    if(!t) return;
+
+    // 等猫追时才激活引导
+    if(t.waitChase){
+        if(c && c.state==='chase'){
+            t.active=true; t.waitChase=false; t.timer=0;
+        }
+        return;
+    }
     if(!t.active) return;
 
     // 检查老鼠是否靠近家具/墙壁（用于引导"靠墙等猫"）
@@ -1560,6 +1595,14 @@ function drawActionUI(){
     let hs='';for(let i=0;i<G.maxLives;i++) hs+=i<G.lives?'❤️':'🖤';
     ctx.font='18px serif'; ctx.textAlign='center';
     ctx.fillText(hs,G.W/2,32);
+    // 加速提示
+    if(G.hamster && G.hamster.speedBoostTimer>0){
+        const alpha = G.hamster.speedBoostTimer < 0.5 ? G.hamster.speedBoostTimer/0.5 : 1;
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle='#FFD700'; ctx.font='bold 13px sans-serif'; ctx.textAlign='center';
+        ctx.fillText('⚡加速 ' + G.hamster.speedBoostTimer.toFixed(1) + 's', G.W/2, 14);
+        ctx.globalAlpha = 1;
+    }
     // 警觉条
     const bw=80,bh=12,bx=G.W-bw-28,by=24;
     ctx.fillStyle='rgba(255,255,255,0.25)'; rRect(bx,by,bw,bh,6); ctx.fill();
@@ -1793,7 +1836,7 @@ function drawHamsterSprite(x,y,r,face,dir){
                 if(h.failAnim === 'main'){
                     h.failAnim = 'switched';
                     h.failVariant = h.failVariant === 0 ? 1 : 0;
-                    h.failTimer = 0.8 + Math.random()*0.7;
+                    h.failTimer = 2 + Math.random()*2; // 2~4秒
                 } else {
                     h.failAnim = 'main';
                     h.failTimer = 2.5 + Math.random()*3;
