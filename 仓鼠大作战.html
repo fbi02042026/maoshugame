@@ -197,7 +197,7 @@ function isInCatVisionCone(c,h){
     let diff = targetAngle - catAngle;
     while(diff > Math.PI) diff -= Math.PI*2;
     while(diff < -Math.PI) diff += Math.PI*2;
-    return Math.abs(diff) < Math.PI*100/180; // 100度扇形
+    return Math.abs(diff) < Math.PI*70/180; // 70度扇形（100度缩小30%）
 }
 function pushOut(cx,cy,cr,rx,ry,rw,rh){
     let nx=clamp(cx,rx,rx+rw), ny=clamp(cy,ry,ry+rh);
@@ -1242,6 +1242,7 @@ function setupInput(){
 const keys = { up:false, down:false, left:false, right:false };
 function onKeyDown(e){
     if(G.scene!=='game' || G.state!=='action') return;
+    if(G.sageHint && G.sageHint.timer > 0) return; // 提示显示时禁止操作
     switch(e.key){
         case 'w': case 'W': case 'ArrowUp': keys.up=true; break;
         case 's': case 'S': case 'ArrowDown': keys.down=true; break;
@@ -1262,6 +1263,7 @@ function getTouches(e){ return e.changedTouches; }
 
 function onTouchStart(e){
     e.preventDefault();
+    if(G.sageHint && G.sageHint.timer > 0) return; // 提示显示时禁止操作
     for(const t of e.changedTouches){
         const p=canvasCoord(t.clientX,t.clientY);
         processTap(p.x, p.y, t.identifier);
@@ -1269,6 +1271,7 @@ function onTouchStart(e){
 }
 function onTouchMove(e){
     e.preventDefault();
+    if(G.sageHint && G.sageHint.timer > 0) return; // 提示显示时禁止操作
     for(const t of e.changedTouches){
         if(t.identifier===G.touchJoy.id){
             const p=canvasCoord(t.clientX,t.clientY);
@@ -1295,6 +1298,7 @@ function mouseCoord(e){
 }
 function onMouseDown(e){
     mouseDown=true;
+    if(G.sageHint && G.sageHint.timer > 0) return; // 提示显示时禁止操作
     const p=mouseCoord(e);
     processTap(p.x, p.y, -1);
 }
@@ -1528,20 +1532,28 @@ function updateAction(dt){
     G.actionTimer+=dt;
     const h=G.hamster, c=G.cat;
 
-    // 摇杆 + 键盘输入
+    // 摇杆 + 键盘输入（提示显示时禁止移动）
     let mx=0, my=0;
-    if(G.touchJoy.active){
-        const mag=Math.hypot(G.touchJoy.dx,G.touchJoy.dy);
-        if(mag>5){
-            mx=G.touchJoy.dx/mag; my=G.touchJoy.dy/mag;
+    if(G.sageHint && G.sageHint.timer > 0){
+        mx=0; my=0; // 强制停止
+    } else {
+        if(G.touchJoy.active){
+            const mag=Math.hypot(G.touchJoy.dx,G.touchJoy.dy);
+            if(mag>5){
+                mx=G.touchJoy.dx/mag; my=G.touchJoy.dy/mag;
+            }
         }
     }
     // 键盘输入（WASD/方向键）
     let kx=0, ky=0;
-    if(keys.up) ky-=1;
-    if(keys.down) ky+=1;
-    if(keys.left) kx-=1;
-    if(keys.right) kx+=1;
+    if(G.sageHint && G.sageHint.timer > 0){
+        kx=0; ky=0;
+    } else {
+        if(keys.up) ky-=1;
+        if(keys.down) ky+=1;
+        if(keys.left) kx-=1;
+        if(keys.right) kx+=1;
+    }
     const kLen=Math.hypot(kx,ky);
     if(kLen>0.01){
         kx/=kLen; ky/=kLen;
@@ -2333,7 +2345,7 @@ function drawCat(){
         c._smoothAngle = normalizeAngle(c._smoothAngle + diff * 0.15); // 平滑过渡
         const catAngle = c._smoothAngle;
         const coneDist = 100;
-        const coneAngle = Math.PI*100/180; // 100度
+        const coneAngle = Math.PI*70/180; // 70度（100度缩小30%）
         // 扇形填充
         ctx.save();
         ctx.globalAlpha = c.state==='chase' ? 0.25 : 0.15;
