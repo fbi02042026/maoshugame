@@ -407,6 +407,8 @@ function createCat(){
         freezeTimer:0,       // 冻结状态计时
         lastState:'sleeping', // 上一帧的状态
         stuckX:0, stuckY:0, stuckTimer:0, // 卡住检测
+        patrolRandomAngle:0, // 巡逻随机偏移角度
+        patrolRandomTimer:0, // 巡逻随机偏移计时
     };
 }
 function genPatrolPts(){
@@ -468,18 +470,21 @@ function updateCat(dt){
     c.lastState = c.state;
 
     // 统一的alertValue增长/下降（非chase/surprised/freeze/stunned/confused状态下）
+    // 警戒圈=视野=100px圆形。老鼠在警戒圈内警戒值增长，视野锥内增长更快
     if(c.state !== 'chase' && c.state !== 'surprised' && c.state !== 'freeze' && c.state !== 'stunned' && c.state !== 'confused'){
-        const canSee = hasLineOfSight(c.x,c.y,h.x,h.y) && isInCatVisionCone(c,h);
-        if(d < 100 && canSee){
-            // 距离越近增长越快（1x~2x），且在视野锥内
-            const rangeFactor = 1 + (100 - d) / 100;
-            let gain = lv.alertSpeed * 10 * dt * rangeFactor;
+        if(d < 100) {
+            // 基础增长（警戒圈内）
+            let gain = lv.alertSpeed * 5 * dt;
+            // 如果在视野锥内，增长加速2.5倍
+            if(isInCatVisionCone(c,h)) {
+                gain *= 2.5;
+            }
             if(hiding) gain *= 0.15; // 躲藏时增长极慢
-            // 老鼠靠近猫的警戒圈后，警戒加速10%
-            if(d < 50) gain *= 1.10;
+            // 距离越近增长越快
+            if(d < 50) gain *= 1.2;
             c.alertValue += gain;
         } else {
-            // 远离时慢慢下降
+            // 远离警戒圈时慢慢下降
             c.alertValue -= lv.alertSpeed * 0.5 * dt;
         }
     }
@@ -517,7 +522,20 @@ function updateCat(dt){
                     }
                     if(dist>bestGap){bestGap=dist; bestDir=dir;}
                 }
-                if(bestDir && bestGap>30){
+                if(c.state==='patrol'){
+                    // 巡逻时卡住：优先朝向食物方向 + 随机偏移
+                    let targetX=G.mapW/2, targetY=G.mapH/2;
+                    const food=G.foods && G.foods.find(f=>!f.collected);
+                    if(food){ targetX=food.x; targetY=food.y; }
+                    const foodAngle=Math.atan2(targetY-c.y, targetX-c.x);
+                    const offset=(Math.random()-0.5)*Math.PI; // ±90度随机偏移
+                    const finalAngle=foodAngle+offset;
+                    c.vx=Math.cos(finalAngle); c.vy=Math.sin(finalAngle);
+                    c.targetVx=c.vx; c.targetVy=c.vy;
+                    c.patrolRandomAngle=finalAngle;
+                    c.patrolRandomTimer=rand(0.8, 2.0); // 随机走一段
+                    c.curSpd = Math.max(c.curSpd, c.patrolSpeed);
+                } else if(bestDir && bestGap>30){
                     c.vx=bestDir.vx; c.vy=bestDir.vy; c.targetVx=bestDir.vx; c.targetVy=bestDir.vy;
                     c.curSpd = Math.max(c.curSpd, c.patrolSpeed);
                 } else if(c.state==='chase' || c.state==='alert'){
@@ -534,7 +552,7 @@ function updateCat(dt){
                         }
                     }
                 } else {
-                    // 巡逻/眩晕/困惑中卡住：强制换方向
+                    // 眩晕/困惑中卡住：强制换方向
                     c.state='patrol'; c.patrolPts=genPatrolPts(); c.patrolIdx=0;
                     if(c.patrolPts.length>0){
                         const pt=c.patrolPts[0];
@@ -597,7 +615,14 @@ function updateCat(dt){
         // 警戒值高：进入alert
         if(c.alertValue > 15){c.state='alert';c.face='alert'; break;}
         // 正常巡逻
-        if(c.patrolIdx < c.patrolPts.length){
+        if(c.patrolRandomTimer > 0){
+            // 随机偏移模式：朝食物方向+随机偏移走一段
+            c.patrolRandomTimer -= dt;
+            c.targetSpd = c.patrolSpeed;
+            const tx = c.x + Math.cos(c.patrolRandomAngle) * 100;
+            const ty = c.y + Math.sin(c.patrolRandomAngle) * 100;
+            catMove(c, tx, ty, dt);
+        } else if(c.patrolIdx < c.patrolPts.length){
             const t = c.patrolPts[c.patrolIdx];
             const td = dist(c,t);
             if(td < 30){
