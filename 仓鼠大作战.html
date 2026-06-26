@@ -166,6 +166,7 @@ const C = {
 // ============================================================
 function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
 function clamp(v,mn,mx){ return Math.max(mn,Math.min(mx,v)); }
+function normalizeAngle(a){ while(a>Math.PI) a-=Math.PI*2; while(a<-Math.PI) a+=Math.PI*2; return a; }
 function lerp(a,b,t){ return a+(b-a)*t; }
 function rand(a,b){ return a+Math.random()*(b-a); }
 function randInt(a,b){ return Math.floor(rand(a,b+1)); }
@@ -523,13 +524,44 @@ function updateCat(dt){
                     if(dist>bestGap){bestGap=dist; bestDir=dir;}
                 }
                 if(c.state==='patrol'){
-                    // 巡逻时卡住：优先朝向食物方向 + 随机偏移
+                    // 巡逻时卡住：在通畅方向中选最接近食物方向的 + 随机偏移
                     let targetX=G.mapW/2, targetY=G.mapH/2;
                     const food=G.foods && G.foods.find(f=>!f.collected);
                     if(food){ targetX=food.x; targetY=food.y; }
                     const foodAngle=Math.atan2(targetY-c.y, targetX-c.x);
-                    const offset=(Math.random()-0.5)*Math.PI; // ±90度随机偏移
-                    const finalAngle=foodAngle+offset;
+                    // 收集所有通畅方向（gap>30）
+                    const clearDirs=[];
+                    for(let dir of testDirs){
+                        let clear=true, dist=0;
+                        for(let step=10; step<=80; step+=10){
+                            const tx=c.x+dir.vx*step, ty=c.y+dir.vy*step;
+                            for(let f of G.furniture){
+                                if(f.interactive && circRectHit(tx,ty,c.r,f.x,f.y,f.w,f.h)){clear=false;break;}
+                            }
+                            if(!clear) break;
+                            for(let w of G.walls){
+                                if(circRectHit(tx,ty,c.r,w.x,w.y,w.w,w.h)){clear=false;break;}
+                            }
+                            if(!clear) break;
+                            dist=step;
+                        }
+                        if(dist>30) clearDirs.push({dir, dist, angle:Math.atan2(dir.vy,dir.vx)});
+                    }
+                    let finalAngle;
+                    if(clearDirs.length>0){
+                        // 选最接近食物方向 + 小随机偏移
+                        clearDirs.sort((a,b)=>{
+                            const da=Math.abs(normalizeAngle(a.angle-foodAngle));
+                            const db=Math.abs(normalizeAngle(b.angle-foodAngle));
+                            return da-db;
+                        });
+                        const best=clearDirs[0];
+                        const offset=(Math.random()-0.5)*0.6; // ±30度小偏移
+                        finalAngle=best.angle+offset;
+                    } else {
+                        // 没有通畅方向，完全随机
+                        finalAngle=Math.random()*Math.PI*2;
+                    }
                     c.vx=Math.cos(finalAngle); c.vy=Math.sin(finalAngle);
                     c.targetVx=c.vx; c.targetVy=c.vy;
                     c.patrolRandomAngle=finalAngle;
@@ -1616,10 +1648,9 @@ function updateAction(dt){
         }
     }
 
-    // 仙人近距离提示：猫靠近时提示躲避
-    if(c && (c.state==='chase' || c.state==='alert') && dist(h,c) < 200){
-        const hints = ['快躲到家具后面！','找个东西挡一下！','快躲开！'];
-        G.sageHint = { text: hints[randInt(0,hints.length-1)], timer: 2.0 };
+    // 仙人近距离提示：猫靠近时提示躲避（只在无提示时触发，避免乱闪）
+    if(!G.sageHint && c && (c.state==='chase' || c.state==='alert') && dist(h,c) < 200){
+        G.sageHint = { text: '快躲到家具后面！', timer: 2.0 };
     }
     if(G.sageHint){
         G.sageHint.timer -= dt;
@@ -2184,30 +2215,28 @@ function drawHamsterChar(){
     const h=G.hamster;
     if(h.invincible>0 && Math.floor(G.time*10)%2===0) return;
     drawHamsterSprite(h.x,h.y,h.r,h.face,h.dir);
-    // 脚底食物格（能量格样式）
+    // 脚底食物格（能量格样式，带食物图标）
     if(G.foodTarget > 0){
-        const slotSize=8, gap=3, totalW=(slotSize+gap)*G.foodTarget-gap;
-        const sx=h.x-totalW/2, sy=h.y+h.r+4;
+        const slotSize=10, gap=3, totalW=(slotSize+gap)*G.foodTarget-gap;
+        const sx=h.x-totalW/2, sy=h.y+h.r+5;
         for(let i=0;i<G.foodTarget;i++){
             const x=sx+i*(slotSize+gap);
-            ctx.fillStyle = i<G.foodCollected ? '#FFD700' : 'rgba(255,255,255,0.15)';
-            rRect(x,sy,slotSize,slotSize,2); ctx.fill();
             if(i<G.foodCollected){
+                // 已收集：金色背景+食物图标
+                ctx.fillStyle='#FFD700';
+                rRect(x,sy,slotSize,slotSize,3); ctx.fill();
                 ctx.strokeStyle='#DAA520'; ctx.lineWidth=1;
-                rRect(x,sy,slotSize,slotSize,2); ctx.stroke();
+                rRect(x,sy,slotSize,slotSize,3); ctx.stroke();
+                ctx.font='8px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+                ctx.fillText('🍖',x+slotSize/2,sy+slotSize/2+1);
+            } else {
+                // 未收集：暗色空槽
+                ctx.fillStyle='rgba(255,255,255,0.1)';
+                rRect(x,sy,slotSize,slotSize,3); ctx.fill();
+                ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.lineWidth=1;
+                rRect(x,sy,slotSize,slotSize,3); ctx.stroke();
             }
         }
-    }
-    // 背着食物的包裹效果（在身后）
-    if(G.foodCollected>0){
-        const bx = h.x - Math.cos(h.dir*Math.PI/2)*10;
-        const by = h.y - Math.sin(h.dir*Math.PI/2)*10;
-        ctx.fillStyle='#8B4513';
-        ctx.beginPath(); ctx.arc(bx, by, 6, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle='#D2691E'; ctx.lineWidth=1.5;
-        ctx.beginPath(); ctx.arc(bx, by, 6, 0, Math.PI*2); ctx.stroke();
-        ctx.fillStyle='#FFD700'; ctx.font='8px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText('🍖',bx,by);
     }
 }
 // 浮动文字效果（+1, +2等）
@@ -2297,12 +2326,17 @@ function drawCat(){
     const c=G.cat;
     // 猫视野锥（扇形区域）：100px距离，100度
     if(c.state!=='sleeping' && c.state!=='surprised' && c.state!=='freeze'){
-        const catAngle = Math.atan2(c.vy, c.vx);
+        // 平滑视野角度：使用target方向避免抖动
+        const targetAngle = Math.atan2(c.targetVy || c.vy, c.targetVx || c.vx);
+        if(!c._smoothAngle) c._smoothAngle = targetAngle;
+        const diff = normalizeAngle(targetAngle - c._smoothAngle);
+        c._smoothAngle = normalizeAngle(c._smoothAngle + diff * 0.15); // 平滑过渡
+        const catAngle = c._smoothAngle;
         const coneDist = 100;
         const coneAngle = Math.PI*100/180; // 100度
         // 扇形填充
         ctx.save();
-        ctx.globalAlpha = c.state==='chase' ? 0.12 : 0.06;
+        ctx.globalAlpha = c.state==='chase' ? 0.25 : 0.15;
         ctx.fillStyle = c.state==='chase' ? '#FF4444' : '#FFA500';
         ctx.beginPath();
         ctx.moveTo(c.x, c.y);
@@ -2311,7 +2345,7 @@ function drawCat(){
         ctx.fill();
         ctx.globalAlpha = 1;
         // 警戒圈（圆形，和视野锥一致）
-        ctx.strokeStyle = c.alertValue > 50 ? 'rgba(255,68,68,0.3)' : 'rgba(255,165,0,0.2)';
+        ctx.strokeStyle = c.alertValue > 50 ? 'rgba(255,68,68,0.4)' : 'rgba(255,165,0,0.3)';
         ctx.lineWidth = 2;
         ctx.setLineDash([6,4]);
         ctx.beginPath(); ctx.arc(c.x,c.y,100,0,Math.PI*2); ctx.stroke();
