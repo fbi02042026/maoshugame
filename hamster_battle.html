@@ -45,6 +45,7 @@ const G = {
     foodCollected: 0, foodTarget: 3, foodDropped: [], foodDropAlert: 0,
     energy: 5, maxEnergy: 5,
     shakeTimer: 0, shakeIntensity: 0, redFlash: 0,
+    floatTexts: [], // 浮动文字效果 [{x,y,text,timer,maxTimer,color}]
     camera: { x: 0, y: 0, zoom: 1, targetZoom: 1, targetX: 0, targetY: 0 },
     mapW: 900, mapH: 1300,
     hamster: null, cat: null,
@@ -1530,6 +1531,7 @@ function updateAction(dt){
             if(h.stealProgress>=1){
                 td.collected=true; td.stealing=false;
                 G.foodCollected++; h.stealing=false; h.stealTarget=null;
+                G.floatTexts.push({x:h.x,y:h.y-20,text:`+${G.foodCollected}`,timer:1.2,maxTimer:1.2,color:'#FFD700'});
                 h.stealProgress=0; h.face='happy';
                 setTimeout(()=>{if(G.hamster) G.hamster.face='normal';},1000);
                 // 第一关：偷到食物后猫立马惊醒！
@@ -1556,7 +1558,11 @@ function updateAction(dt){
 
     // 捡掉落食物
     for(let i=G.foodDropped.length-1;i>=0;i--){
-        if(dist(h,G.foodDropped[i])<h.r+16){G.foodCollected++;G.foodDropped.splice(i,1);}
+        if(dist(h,G.foodDropped[i])<h.r+16){
+            G.foodCollected++;
+            G.floatTexts.push({x:h.x,y:h.y-20,text:`+${G.foodCollected}`,timer:1.2,maxTimer:1.2,color:'#FFD700'});
+            G.foodDropped.splice(i,1);
+        }
     }
 
     // 无敌
@@ -1758,6 +1764,8 @@ function drawGame(sx,sy){
     ctx.scale(z,z);
     ctx.translate(-G.camera.x,-G.camera.y);
 
+    const dt = G.dt || 0.016; // 帧间隔
+
     drawFloorTile(0,0,G.mapW,G.mapH);
     // 地板边界清晰标记
     ctx.strokeStyle='rgba(100,80,60,0.5)'; ctx.lineWidth=3;
@@ -1801,6 +1809,8 @@ function drawGame(sx,sy){
     for(let tr of G.placedTraps) drawPlacedTrap(tr);
     if(G.cat) drawCat();
     if(G.hamster && G.hamster.visible) drawHamsterChar();
+    // 浮动文字效果（+1等）需要dt
+    drawFloatTexts(dt);
 
     ctx.restore();
 
@@ -2149,6 +2159,20 @@ function drawHamsterChar(){
     const h=G.hamster;
     if(h.invincible>0 && Math.floor(G.time*10)%2===0) return;
     drawHamsterSprite(h.x,h.y,h.r,h.face,h.dir);
+    // 脚底食物格（能量格样式）
+    if(G.foodTarget > 0){
+        const slotSize=8, gap=3, totalW=(slotSize+gap)*G.foodTarget-gap;
+        const sx=h.x-totalW/2, sy=h.y+h.r+4;
+        for(let i=0;i<G.foodTarget;i++){
+            const x=sx+i*(slotSize+gap);
+            ctx.fillStyle = i<G.foodCollected ? '#FFD700' : 'rgba(255,255,255,0.15)';
+            rRect(x,sy,slotSize,slotSize,2); ctx.fill();
+            if(i<G.foodCollected){
+                ctx.strokeStyle='#DAA520'; ctx.lineWidth=1;
+                rRect(x,sy,slotSize,slotSize,2); ctx.stroke();
+            }
+        }
+    }
     // 背着食物的包裹效果（在身后）
     if(G.foodCollected>0){
         const bx = h.x - Math.cos(h.dir*Math.PI/2)*10;
@@ -2159,6 +2183,25 @@ function drawHamsterChar(){
         ctx.beginPath(); ctx.arc(bx, by, 6, 0, Math.PI*2); ctx.stroke();
         ctx.fillStyle='#FFD700'; ctx.font='8px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
         ctx.fillText('🍖',bx,by);
+    }
+}
+// 浮动文字效果（+1, +2等）
+function drawFloatTexts(dt){
+    for(let i=G.floatTexts.length-1;i>=0;i--){
+        const ft=G.floatTexts[i];
+        ft.timer-=dt;
+        if(ft.timer<=0){G.floatTexts.splice(i,1);continue;}
+        const progress=1-ft.timer/ft.maxTimer;
+        const alpha=1-progress;
+        const offsetY=-20-progress*25; // 向上浮动
+        const scale=1+progress*0.3; // 略微放大
+        ctx.save();
+        ctx.globalAlpha=alpha;
+        ctx.fillStyle=ft.color;
+        ctx.font=`bold ${Math.floor(14*scale)}px sans-serif`;
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(ft.text,ft.x,ft.y+offsetY);
+        ctx.restore();
     }
 }
 function drawHamsterSprite(x,y,r,face,dir){
