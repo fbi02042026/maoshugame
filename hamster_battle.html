@@ -81,6 +81,29 @@ function loadImages(){
         mouseFail1: 'assets/mouse_fail1.png',
         mouseFail2: 'assets/mouse_fail2.png',
         sage: 'assets/sage.png',
+        // 家具图片
+        fridge: 'assets/fridge.png',
+        stove: 'assets/stove.png',
+        counter: 'assets/counter.png',
+        cabinet: 'assets/cabinet.png',
+        cabinet2: 'assets/cabinet2.png',
+        catbed: 'assets/catbed.png',
+        table: 'assets/table.png',
+        chair: 'assets/chair.png',
+        sofa: 'assets/sofa.png',
+        coffeeTable: 'assets/coffeeTable.png',
+        plant: 'assets/plant.png',
+        box: 'assets/box.png',
+        cart: 'assets/cart.png',
+        // 食物图片
+        food_nut: 'assets/food_nut.png',
+        food_cheese: 'assets/food_cheese.png',
+        food_grape: 'assets/food_grape.png',
+        food_strawberry: 'assets/food_strawberry.png',
+        food_cookie: 'assets/food_cookie.png',
+        food_croissant: 'assets/food_croissant.png',
+        food_donut: 'assets/food_donut.png',
+        food_cake: 'assets/food_cake.png',
     };
     for(let k in map){
         IMAGES[k] = new Image();
@@ -123,10 +146,10 @@ const TRAP_DATA = {
     pot:       { name:'花盆',   energy:3, stun:4.0, icon:'🪴' },
 };
 const FOOD_TYPES = [
-    { name:'坚果', icon:'🥜' }, { name:'奶酪', icon:'🧀' },
-    { name:'葡萄', icon:'🍇' }, { name:'草莓', icon:'🍓' },
-    { name:'饼干', icon:'🍪' }, { name:'牛角包', icon:'🥐' },
-    { name:'甜甜圈', icon:'🍩' }, { name:'蛋糕', icon:'🍰' },
+    { name:'坚果', icon:'🥜', img:'food_nut' }, { name:'奶酪', icon:'🧀', img:'food_cheese' },
+    { name:'葡萄', icon:'🍇', img:'food_grape' }, { name:'草莓', icon:'🍓', img:'food_strawberry' },
+    { name:'饼干', icon:'🍪', img:'food_cookie' }, { name:'牛角包', icon:'🥐', img:'food_croissant' },
+    { name:'甜甜圈', icon:'🍩', img:'food_donut' }, { name:'蛋糕', icon:'🍰', img:'food_cake' },
 ];
 const C = {
     wall: '#B8E6D0', floor1: '#F0E4D4', floor2: '#E8DAC8',
@@ -341,7 +364,8 @@ function createCat(){
     const lv=LEVELS[G.currentLevel-1];
     const r=Math.random();
     let st,tm;
-    if(r<0.4){st='sleeping';tm=10;}else if(r<0.8){st='lazy';tm=8;}else{st='patrol';tm=0;}
+    if(G.currentLevel===1){st='sleeping';tm=15;} // 第1关猫100%睡觉15秒
+    else if(r<0.4){st='sleeping';tm=10;}else if(r<0.8){st='lazy';tm=8;}else{st='patrol';tm=0;}
     const starts = G.currentLevel === 1 ?
         [{x:420,y:200},{x:140,y:280},{x:480,y:320},{x:280,y:240}] :
         [{x:600,y:280},{x:200,y:380},{x:700,y:460},{x:400,y:320}];
@@ -1949,30 +1973,24 @@ function drawRatHole(){
 function drawFurniture(f){
     ctx.save();
     if(f.gray) ctx.globalAlpha=0.35;
-    const colors = {
-        fridge:{f:'#E8E8E8',s:'#CCC'}, stove:{f:'#555',s:'#333'},
-        counter:{f:'#D2B48C',s:'#8B7355'}, cabinet:{f:'#DEB887',s:'#A0825A'},
-        cabinet2:{f:'#DEB887',s:'#A0825A'}, catbed:{f:'#FFB6C1',s:'#FF69B4'},
-        table:{f:C.darkBrown,s:'#6B4914'}, chair:{f:C.darkBrown,s:'#6B4914'},
-        sofa:{f:C.darkBrown,s:'#6B4914'}, coffeeTable:{f:C.darkBrown,s:'#6B4914'},
-        plant:{f:'#228B22',s:'#006400'}, box:{f:C.darkBrown,s:'#6B4914'},
-        cart:{f:'#888',s:'#666'},
-    };
-    const cl = colors[f.type] || {f:'#A0825A',s:'#7A6040'};
-    ctx.fillStyle=cl.f; rRect(f.x,f.y,f.w,f.h,5); ctx.fill();
-    ctx.strokeStyle=cl.s; ctx.lineWidth=2; rRect(f.x,f.y,f.w,f.h,5); ctx.stroke();
-    // 特殊装饰
-    if(f.type==='stove'){
-        ctx.fillStyle='#FF6600';
-        ctx.beginPath();ctx.arc(f.x+35,f.y+25,7,0,Math.PI*2);ctx.fill();
-        ctx.beginPath();ctx.arc(f.x+85,f.y+25,7,0,Math.PI*2);ctx.fill();
-    }
-    if(f.type==='catbed'){
-        ctx.fillStyle='#FFF';
-        ctx.beginPath();ctx.ellipse(f.x+f.w/2,f.y+15,18,10,0,0,Math.PI*2);ctx.fill();
-    }
-    if(f.type==='fridge'){
-        ctx.fillStyle='#AAA'; ctx.fillRect(f.x+f.w/2-3,f.y+5,6,f.h-10);
+    // 优先使用图片素材
+    const img = IMAGES[f.type];
+    if(img && img.complete && img.naturalWidth > 0){
+        ctx.drawImage(img, f.x, f.y, f.w, f.h);
+    } else {
+        // 纯色方块备用
+        const colors = {
+            fridge:{f:'#E8E8E8',s:'#CCC'}, stove:{f:'#555',s:'#333'},
+            counter:{f:'#D2B48C',s:'#8B7355'}, cabinet:{f:'#DEB887',s:'#A0825A'},
+            cabinet2:{f:'#DEB887',s:'#A0825A'}, catbed:{f:'#FFB6C1',s:'#FF69B4'},
+            table:{f:C.darkBrown,s:'#6B4914'}, chair:{f:C.darkBrown,s:'#6B4914'},
+            sofa:{f:C.darkBrown,s:'#6B4914'}, coffeeTable:{f:C.darkBrown,s:'#6B4914'},
+            plant:{f:'#228B22',s:'#006400'}, box:{f:C.darkBrown,s:'#6B4914'},
+            cart:{f:'#888',s:'#666'},
+        };
+        const cl = colors[f.type] || {f:'#A0825A',s:'#7A6040'};
+        ctx.fillStyle=cl.f; rRect(f.x,f.y,f.w,f.h,5); ctx.fill();
+        ctx.strokeStyle=cl.s; ctx.lineWidth=2; rRect(f.x,f.y,f.w,f.h,5); ctx.stroke();
     }
     ctx.restore();
     if(f.interactive && !f.gray){
@@ -1985,8 +2003,14 @@ function drawFood(food,dropped){
     if(!dropped && !food.stealing){
         ctx.globalAlpha=0.7+0.3*Math.sin(G.time*4);
     }
-    ctx.font='24px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(food.type.icon,food.x,food.y);
+    // 优先用图片素材
+    const img = food.type.img ? IMAGES[food.type.img] : null;
+    if(img && img.complete && img.naturalWidth > 0){
+        ctx.drawImage(img, food.x-16, food.y-16, 32, 32);
+    } else {
+        ctx.font='24px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(food.type.icon,food.x,food.y);
+    }
     ctx.globalAlpha=1;
     if(food.stealing && G.hamster && G.hamster.stealTarget===food){
         ctx.strokeStyle=C.gold; ctx.lineWidth=3;
