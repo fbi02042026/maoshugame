@@ -42,7 +42,7 @@ const G = {
     time: 0, dt: 0, lastTime: 0,
     currentLevel: 1, maxUnlocked: 1,
     lives: 3, maxLives: 3,
-    foodCollected: 0, foodTarget: 3, foodDropped: [],
+    foodCollected: 0, foodTarget: 3, foodDropped: [], foodDropAlert: 0,
     energy: 5, maxEnergy: 5,
     shakeTimer: 0, shakeIntensity: 0, redFlash: 0,
     camera: { x: 0, y: 0, zoom: 1, targetZoom: 1, targetX: 0, targetY: 0 },
@@ -80,6 +80,7 @@ function loadImages(){
         catNormal: 'assets/cat_sleep.png',
         mouseFail1: 'assets/mouse_fail1.png',
         mouseFail2: 'assets/mouse_fail2.png',
+        sage: 'assets/sage.png',
     };
     for(let k in map){
         IMAGES[k] = new Image();
@@ -91,10 +92,10 @@ loadImages();
 
 // ---- 难度参数（后期可修改） ----
 const DIFFICULTY = {
-    hamsterBaseSpeed: 1.68,      // 老鼠基础速度
+    hamsterBaseSpeed: 1.93,      // 老鼠基础速度（1.68 +15%）
     hamsterSpeedBoost: 2.5,      // 被抓后加速倍率
     hamsterBoostDuration: 3.0,   // 加速持续时间(秒)
-    catBaseSpeed: 1.68,          // 猫基础速度（=老鼠速度）
+    catBaseSpeed: 1.93,          // 猫基础速度（=老鼠速度，+15%）
     catChaseMultiplier: 1.0,     // 追逐速度倍率（1.0 = 和老鼠一样快）
     catPatrolMultiplier: 0.8,    // 巡逻速度倍率
     catAccel: 6.0,               // 猫加速度
@@ -427,6 +428,8 @@ function updateCat(dt){
             const rangeFactor = 1 + (500 - d) / 100;
             let gain = lv.alertSpeed * 10 * dt * rangeFactor;
             if(hiding) gain *= 0.15; // 躲藏时增长极慢
+            // 老鼠靠近猫的警戒圈后，警戒加速10%
+            if(d < 300) gain *= 1.10;
             c.alertValue += gain;
         } else {
             // 远离时慢慢下降
@@ -1000,7 +1003,7 @@ function catCatchHamster(){
     const dLen=Math.hypot(dx,dy);
     if(dLen>0.01){dx/=dLen; dy/=dLen;}
     // 老鼠被撞飞，但逐步检测不穿障碍物
-    const knockback=70;
+    const knockback=35;
     let remaining=knockback;
     const step=5;
     while(remaining>0){
@@ -1029,6 +1032,7 @@ function catCatchHamster(){
     if(G.foodCollected>0){
         G.foodCollected--;
         G.foodDropped.push({x:h.x,y:h.y,type:FOOD_TYPES[randInt(0,FOOD_TYPES.length-1)]});
+        G.foodDropAlert = 2.0; // 掉落提醒持续2秒
     }
     c.state='confused'; c.stateTimer=1.5; c.alertValue=0;
     c.targetSpd=0; c.curSpd*=0.3; // 抓到后减速滑行
@@ -1288,6 +1292,7 @@ function update(dt){
     G.camera.zoom=lerp(G.camera.zoom,G.camera.targetZoom,3*dt);
     if(G.shakeTimer>0) G.shakeTimer-=dt;
     if(G.redFlash>0) G.redFlash-=dt;
+    if(G.foodDropAlert>0) G.foodDropAlert-=dt;
 }
 
 function updateOpening(dt){
@@ -1331,25 +1336,22 @@ function updateAction(dt){
 
     // 摇杆 + 键盘输入
     let mx=0, my=0;
-    if(G.touchJoy.active && !h.stealing){
+    if(G.touchJoy.active){
         const mag=Math.hypot(G.touchJoy.dx,G.touchJoy.dy);
         if(mag>5){
             mx=G.touchJoy.dx/mag; my=G.touchJoy.dy/mag;
         }
     }
     // 键盘输入（WASD/方向键）
-    if(!h.stealing){
-        let kx=0, ky=0;
-        if(keys.up) ky-=1;
-        if(keys.down) ky+=1;
-        if(keys.left) kx-=1;
-        if(keys.right) kx+=1;
-        const kLen=Math.hypot(kx,ky);
-        if(kLen>0.01){
-            kx/=kLen; ky/=kLen;
-            // 优先键盘输入，没有摇杆时才用键盘
-            if(Math.abs(mx)<0.01 && Math.abs(my)<0.01){ mx=kx; my=ky; }
-        }
+    let kx=0, ky=0;
+    if(keys.up) ky-=1;
+    if(keys.down) ky+=1;
+    if(keys.left) kx-=1;
+    if(keys.right) kx+=1;
+    const kLen=Math.hypot(kx,ky);
+    if(kLen>0.01){
+        kx/=kLen; ky/=kLen;
+        if(Math.abs(mx)<0.01 && Math.abs(my)<0.01){ mx=kx; my=ky; }
     }
     const boostSpeed = h.speed * DIFFICULTY.hamsterSpeedBoost;
     const curSpeed = h.speedBoostTimer > 0 ? boostSpeed : h.speed;
@@ -1375,25 +1377,29 @@ function updateAction(dt){
         }
     }
 
-    // 食物偷取
+    // 食物偷取 - 老鼠可以移动，只要在食物范围内就继续偷
     if(!h.stealing){
         for(let food of G.foods){
-            if(!food.collected && !food.stealing && dist(h,food)<h.r+16){
+            if(!food.collected && !food.stealing && dist(h,food)<h.r+22){
                 h.stealing=true; h.stealTarget=food; h.stealProgress=0;
                 food.stealing=true;
             }
         }
     }
     if(h.stealing){
-        h.stealProgress+=dt*1.2; // 速度略快
-        if(h.stealProgress>=1){
-            h.stealTarget.collected=true; h.stealTarget.stealing=false;
-            G.foodCollected++; h.stealing=false; h.stealTarget=null;
-            h.stealProgress=0; h.face='happy';
-            setTimeout(()=>{if(G.hamster) G.hamster.face='normal';},1000);
-        }
-        if(G.touchJoy.active && Math.hypot(G.touchJoy.dx**2,G.touchJoy.dy**2)>10){
-            if(h.stealTarget) h.stealTarget.stealing=false;
+        const td = h.stealTarget;
+        // 检查是否还在食物范围内
+        if(td && dist(h,td) < h.r+22){
+            h.stealProgress+=dt*1.2;
+            if(h.stealProgress>=1){
+                td.collected=true; td.stealing=false;
+                G.foodCollected++; h.stealing=false; h.stealTarget=null;
+                h.stealProgress=0; h.face='happy';
+                setTimeout(()=>{if(G.hamster) G.hamster.face='normal';},1000);
+            }
+        } else {
+            // 离开食物范围，取消偷取
+            if(td) td.stealing=false;
             h.stealing=false; h.stealProgress=0;
         }
     }
@@ -1595,6 +1601,22 @@ function drawGame(sx,sy){
     drawRatHole();
     for(let f of G.furniture) drawFurniture(f);
     for(let food of G.foods) if(!food.collected) drawFood(food);
+    // 食物范围圈提示
+    if(G.hamster){
+        for(let food of G.foods){
+            if(!food.collected && !food.stealing){
+                const fd = dist(G.hamster, food);
+                if(fd < G.hamster.r+26){
+                    const alpha = fd < G.hamster.r+22 ? 0.5 : 0.2;
+                    ctx.strokeStyle = `rgba(255,215,0,${alpha})`; ctx.lineWidth = 2;
+                    ctx.setLineDash([4,3]);
+                    ctx.beginPath(); ctx.arc(food.x, food.y, G.hamster.r+22, 0, Math.PI*2);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+        }
+    }
     for(let food of G.foodDropped) drawFood(food,true);
     for(let tr of G.placedTraps) drawPlacedTrap(tr);
     if(G.cat) drawCat();
@@ -1675,6 +1697,14 @@ function drawActionUI(){
         ctx.globalAlpha = alpha;
         ctx.fillStyle='#FFD700'; ctx.font='bold 13px sans-serif'; ctx.textAlign='center';
         ctx.fillText('⚡加速 ' + G.hamster.speedBoostTimer.toFixed(1) + 's', G.W/2, 14);
+        ctx.globalAlpha = 1;
+    }
+    // 掉落食物提醒
+    if(G.foodDropAlert>0){
+        const alpha = Math.min(1, G.foodDropAlert);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle='#FF6347'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center';
+        ctx.fillText('🍖 食物掉落了！快去捡回来！', G.W/2, 24);
         ctx.globalAlpha = 1;
     }
     // 警觉条
@@ -1766,14 +1796,19 @@ function drawTutorial(){
     ctx.fillStyle='rgba(255,255,255,0.92)';
     rRect(bx,by,bw,bh,15); ctx.fill();
     ctx.strokeStyle=C.darkBrown; ctx.lineWidth=2; rRect(bx,by,bw,bh,15); ctx.stroke();
-    // 老鼠仙人
-    ctx.font='28px serif'; ctx.textAlign='left';
-    ctx.fillText('🧙',bx+8,by+25);
+    // 仙人引导图片
+    if(IMAGES.sage && IMAGES.sage.complete){
+        const ih=38, iw=38;
+        ctx.drawImage(IMAGES.sage, bx+10, by+8, iw, ih);
+    } else {
+        ctx.font='28px serif'; ctx.textAlign='left';
+        ctx.fillText('🧙',bx+8,by+25);
+    }
     // 文字
     ctx.fillStyle='#333'; ctx.font='14px sans-serif';
-    ctx.fillText(t.text,bx+42,by+22);
+    ctx.fillText(t.text,bx+50,by+22);
     ctx.fillStyle='#999'; ctx.font='11px sans-serif';
-    ctx.fillText(`${t.step+1}/6`,bx+42,by+42);
+    ctx.fillText(`${t.step+1}/6`,bx+50,by+42);
 }
 
 // ---- Result ----

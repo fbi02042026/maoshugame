@@ -8,14 +8,15 @@
 
 ## 1. 难度参数（可修改）
 所有参数在 `DIFFICULTY` 对象中：
-- `hamsterBaseSpeed: 1.68` 老鼠基础速度
+- `hamsterBaseSpeed: 1.93` 老鼠基础速度（+15%）
 - `hamsterSpeedBoost: 2.5` 被抓后加速倍率
 - `hamsterBoostDuration: 3.0` 加速持续时间(秒)
-- `catBaseSpeed: 1.68` 猫基础速度（等于老鼠速度）
+- `catBaseSpeed: 1.93` 猫基础速度（+15%）
 - `catChaseMultiplier: 1.0` 追逐速度倍率
 - `level1RoomScale: 0.7` 第1关房间缩放（**仅房间缩小，家具尺寸不变**）
 - `catAccel: 6.0` 猫加速度
 - `catDecel: 2.5` 猫减速度
+- **撞飞距离 35px**（缩短一半）
 
 ## 3. 猫不能卡死
 - confused/stunned 状态时跳过 applyCatPhysics 的转向/避障，只沿当前方向滑行
