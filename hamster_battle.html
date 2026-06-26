@@ -275,7 +275,7 @@ function isInCatVisionCone(c,h){
     let diff = targetAngle - catAngle;
     while(diff > Math.PI) diff -= Math.PI*2;
     while(diff < -Math.PI) diff += Math.PI*2;
-    return Math.abs(diff) < Math.PI*120/180; // 120度扇形（钝角）
+    return Math.abs(diff) < Math.PI*90/180; // 90度扇形
 }
 function pushOut(cx,cy,cr,rx,ry,rw,rh){
     let nx=clamp(cx,rx,rx+rw), ny=clamp(cy,ry,ry+rh);
@@ -567,6 +567,12 @@ function updateCat(dt){
     const d=dist(c,h), lv=LEVELS[G.currentLevel-1];
     const hiding = isHamsterHiding();
 
+    // 仙人提示时猫也冻结不动
+    if(G.sageHint && G.sageHint.timer > 0){
+        c.targetSpd = 0;
+        return;
+    }
+
     // 状态切换检测（用于起跑效果）
     c.lastState = c.state;
 
@@ -709,13 +715,13 @@ function updateCat(dt){
         if(d < 60 && !hiding && isInCatVisionCone(c,h)){
             c.state='surprised'; c.face='surprised'; c.surprisedTimer=2.0;
             c.catImg='catSurprise';
-            if(c.firstChase){ G.sageHint={text:'猫醒了！快跑！',timer:3.0}; c.firstChase=false; }
+            if(c.firstChase){ G.sageHint={text:'猫醒了！快跑！',timer:2.0}; c.firstChase=false; }
         }
         // 警戒值满了也发现
         else if(c.alertValue >= 100){
             c.state='surprised'; c.face='surprised'; c.surprisedTimer=2.0;
             c.catImg='catSurprise';
-            if(c.firstChase){ G.sageHint={text:'猫醒了！快跑！',timer:3.0}; c.firstChase=false; }
+            if(c.firstChase){ G.sageHint={text:'猫醒了！快跑！',timer:2.0}; c.firstChase=false; }
         }
         // 否则按timer进入lazy
         else if(c.stateTimer <= 0){c.state='lazy';c.stateTimer=rand(6,10);}
@@ -777,21 +783,21 @@ function updateCat(dt){
         if(c.alertValue >= 100){
             c.state='surprised'; c.face='surprised'; c.surprisedTimer=2.0;
             c.catImg='catSurprise';
-            if(c.firstChase){ G.sageHint={text:'哎呀妈呀！猫醒了，快跑噻！',timer:3.0}; c.firstChase=false; }
+            if(c.firstChase){ G.sageHint={text:'猫醒了！快跑！',timer:2.0}; c.firstChase=false; }
             break;
         }
         // 老鼠很近且在视野内：先吃惊
         if(d < 60 && !hiding && isInCatVisionCone(c,h)){
             c.state='surprised'; c.face='surprised'; c.surprisedTimer=2.0;
             c.catImg='catSurprise';
-            if(c.firstChase){ G.sageHint={text:'猫醒了！快跑！',timer:3.0}; c.firstChase=false; }
+            if(c.firstChase){ G.sageHint={text:'猫醒了！快跑！',timer:2.0}; c.firstChase=false; }
             break;
         }
         // 警戒值达到阈值：先吃惊
         if(c.alertValue > 22){
             c.state='surprised'; c.face='surprised'; c.surprisedTimer=2.0;
             c.catImg='catSurprise';
-            if(c.firstChase){ G.sageHint={text:'猫醒了！快跑！',timer:3.0}; c.firstChase=false; }
+            if(c.firstChase){ G.sageHint={text:'猫醒了！快跑！',timer:2.0}; c.firstChase=false; }
             break;
         }
         // 警戒值低：回到patrol
@@ -940,13 +946,17 @@ function updateCat(dt){
                 } else {
                     // 不眩晕：推出 + 减速，不反弹只转向
                     const oldX=c.x, oldY=c.y;
-                    const p=pushOut(c.x,c.y,c.r+10,f.x,f.y,f.w,f.h);
+                    const p=pushOut(c.x,c.y,c.r+16,f.x,f.y,f.w,f.h);
                     const pdx=p.x-oldX, pdy=p.y-oldY;
                     c.x=p.x; c.y=p.y;
                     c.curSpd *= 0.3;
                     c.collCooldown = c.state==='patrol' ? 0.4 : 0.25;
-                    // 转向：沿家具表面切向滑行，不反弹
-                    if(Math.hypot(pdx,pdy)>0.01){
+                    // 巡逻时直接远离家具，不滑行（避免穿透）
+                    if(c.state==='patrol' && Math.hypot(pdx,pdy)>0.01){
+                        const nLen=Math.hypot(pdx,pdy);
+                        c.vx=pdx/nLen; c.vy=pdy/nLen;
+                        c.targetVx=c.vx; c.targetVy=c.vy;
+                    } else if(Math.hypot(pdx,pdy)>0.01){
                         // 法向量（远离家具）
                         const nLen=Math.hypot(pdx,pdy);
                         const nx=pdx/nLen, ny=pdy/nLen;
@@ -1783,7 +1793,7 @@ function updateAction(dt){
                     G.cat.face='surprised';
                     G.cat.surprisedTimer=2.0;
                     G.cat.catImg='catSurprise';
-                    G.sageHint={text:'猫醒了！快跑！',timer:3.0};
+                    G.sageHint={text:'猫醒了！快跑！',timer:2.0};
                 }
             }
         } else {
@@ -1822,7 +1832,7 @@ function updateAction(dt){
     if(G.state==='action' && dist(h,G.ratHole)<h.r+G.ratHole.r){
         if(G.foodCollected===0){
             // 还没拿食物就想跑？仙人提示
-            G.sageHint={text:'等等！还没拿到食物呢，再去找找~',timer:2.5};
+            G.sageHint={text:'等等！还没拿到食物呢，再去找找~',timer:1.5};
         } else {
             G.returnEarly=G.foodCollected<G.foodTarget;
             endGame(true);
@@ -2562,7 +2572,7 @@ function drawHamsterSprite(x,y,r,face,dir){
 }
 function drawCat(){
     const c=G.cat;
-    // 猫视野锥（扇形区域）：100px距离，120度钝角
+    // 猫视野锥（扇形区域）：100px距离，90度
     if(c.state!=='sleeping' && c.state!=='surprised' && c.state!=='freeze'){
         // 平滑视野角度：使用target方向避免抖动
         const targetAngle = Math.atan2(c.targetVy || c.vy, c.targetVx || c.vx);
@@ -2571,7 +2581,7 @@ function drawCat(){
         c._smoothAngle = normalizeAngle(c._smoothAngle + diff * 0.15); // 平滑过渡
         const catAngle = c._smoothAngle;
         const coneDist = 100;
-        const coneAngle = Math.PI*120/180; // 120度（钝角扇形）
+        const coneAngle = Math.PI*90/180; // 90度
         // 扇形填充
         ctx.save();
         ctx.globalAlpha = c.state==='chase' ? 0.25 : 0.20;
