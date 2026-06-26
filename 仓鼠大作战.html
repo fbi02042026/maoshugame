@@ -92,11 +92,11 @@ loadImages();
 
 // ---- 难度参数（后期可修改） ----
 const DIFFICULTY = {
-    hamsterBaseSpeed: 1.93,      // 老鼠基础速度（1.68 +15%）
-    hamsterSpeedBoost: 2.5,      // 被抓后加速倍率
-    hamsterBoostDuration: 3.0,   // 加速持续时间(秒)
-    catBaseSpeed: 1.93,          // 猫基础速度（=老鼠速度，+15%）
-    catChaseMultiplier: 1.0,     // 追逐速度倍率（1.0 = 和老鼠一样快）
+    hamsterBaseSpeed: 1.93,      // 老鼠基础速度
+    hamsterSpeedBoost: 1.75,     // 被抓后加速倍率（减半）
+    hamsterBoostDuration: 1.5,   // 加速持续时间(秒)（减半）
+    catBaseSpeed: 1.93,          // 猫基础速度
+    catChaseMultiplier: 1.0,     // 追逐速度倍率
     catPatrolMultiplier: 0.8,    // 巡逻速度倍率
     catAccel: 6.0,               // 猫加速度
     catDecel: 2.5,               // 猫减速度
@@ -379,16 +379,30 @@ function createCat(){
 }
 function genPatrolPts(){
     const pts=[];
+    // 优先在食物附近生成巡逻点，让猫在食物区域巡逻而不是直接朝老鼠走
+    const uncollectedFoods = G.foods.filter(f=>!f.collected);
+    const foodTargets = uncollectedFoods.length > 0 ? uncollectedFoods : G.foods;
+    // 先生成食物附近的巡逻点
+    for(let food of foodTargets){
+        if(pts.length>=6) break;
+        // 在食物周围随机偏移
+        const angle = Math.random()*Math.PI*2;
+        const dist = 60 + Math.random()*100;
+        const px = food.x + Math.cos(angle)*dist;
+        const py = food.y + Math.sin(angle)*dist;
+        if(px>50 && px<G.mapW-50 && py>50 && py<G.mapH-100){
+            pts.push({x:px,y:py});
+        }
+    }
+    // 补充随机点
     let attempts=0;
     while(pts.length<6 && attempts<200){
         attempts++;
         const px=rand(80,G.mapW-80), py=rand(80,G.mapH-180);
-        // 检查是否在家具内部
         let inside=false;
         for(let f of G.furniture){
             if(px>f.x-10 && px<f.x+f.w+10 && py>f.y-10 && py<f.y+f.h+10){inside=true;break;}
         }
-        // 检查是否在陷阱上
         if(!inside){
             for(let t of G.placedTraps){
                 if(Math.hypot(px-t.x,py-t.y)<25){inside=true;break;}
@@ -441,22 +455,45 @@ function updateCat(dt){
 
     c.lastState = c.state; // 记录上一帧状态用于检测状态变化
 
-    // 卡住检测：猫2秒内移动距离<15px，强制重新找路
+    // 卡住检测：猫1.5秒内移动距离<15px，强制重新找路
     if(c.state==='patrol' || c.state==='chase' || c.state==='alert' || c.state==='stunned' || c.state==='confused'){
         const dx=c.x-c.stuckX, dy=c.y-c.stuckY;
         c.stuckTimer += dt;
-        if(c.stuckTimer > 2.0){
+        if(c.stuckTimer > 1.5){
             const moved=Math.hypot(dx,dy);
             if(moved < 15){
-                // 猫卡住了，强制重置方向
-                if(c.state==='chase' || c.state==='alert'){
+                // 猫卡住了，找最近的空隙方向
+                let bestDir=null, bestGap=0;
+                const testDirs=[
+                    {vx:1,vy:0},{vx:-1,vy:0},{vx:0,vy:1},{vx:0,vy:-1},
+                    {vx:0.707,vy:0.707},{vx:-0.707,vy:0.707},{vx:0.707,vy:-0.707},{vx:-0.707,vy:-0.707}
+                ];
+                for(let dir of testDirs){
+                    let clear=true, dist=0;
+                    for(let step=10; step<=80; step+=10){
+                        const tx=c.x+dir.vx*step, ty=c.y+dir.vy*step;
+                        for(let f of G.furniture){
+                            if(f.interactive && circRectHit(tx,ty,c.r,f.x,f.y,f.w,f.h)){clear=false;break;}
+                        }
+                        if(!clear) break;
+                        for(let w of G.walls){
+                            if(circRectHit(tx,ty,c.r,w.x,w.y,w.w,w.h)){clear=false;break;}
+                        }
+                        if(!clear) break;
+                        dist=step;
+                    }
+                    if(dist>bestGap){bestGap=dist; bestDir=dir;}
+                }
+                if(bestDir && bestGap>30){
+                    c.vx=bestDir.vx; c.vy=bestDir.vy; c.targetVx=bestDir.vx; c.targetVy=bestDir.vy;
+                    c.curSpd = Math.max(c.curSpd, c.patrolSpeed);
+                } else if(c.state==='chase' || c.state==='alert'){
                     // 追逐中卡住：绕开老鼠，从侧面接近
                     const h=G.hamster;
                     if(h){
                         const tox=h.x-c.x, toy=h.y-c.y;
                         const toLen=Math.hypot(tox,toy);
                         if(toLen>0.01){
-                            // 随机左转或右转90度
                             const r=Math.random()>0.5?1:-1;
                             c.vx=(tox*r - toy)/Math.SQRT2/toLen;
                             c.vy=(toy*r + tox)/Math.SQRT2/toLen;
@@ -650,18 +687,20 @@ function updateCat(dt){
                     G.catHits++; f.hitCount=(f.hitCount||0)+1;
                     if(f.hitCount>=3) f.gray=true;
                     G.shakeTimer=0.3; G.shakeIntensity=5;
-                    // 推出更远
-                    const p=pushOut(c.x,c.y,c.r+20,f.x,f.y,f.w,f.h);
-                    const pdx=p.x-c.x, pdy=p.y-c.y;
-                    c.x=p.x; c.y=p.y;
-                    c.curSpd *= 0.5;
-                    c.collCooldown = 0.05; // 短暂冷却，让墙碰撞立即生效防止卡死
-                    // 眩晕时方向设为远离家具（必须在更新位置前计算方向）
-                    if(Math.hypot(pdx,pdy)>0.01){
-                        const vLen=Math.hypot(pdx,pdy);
-                        c.vx=pdx/vLen; c.vy=pdy/vLen;
-                        c.targetVx=c.vx; c.targetVy=c.vy;
+                    // 撞2次后再撞，不再反向推出（原地眩晕）
+                    if(G.catHits < 3){
+                        const p=pushOut(c.x,c.y,c.r+20,f.x,f.y,f.w,f.h);
+                        const pdx=p.x-c.x, pdy=p.y-c.y;
+                        c.x=p.x; c.y=p.y;
+                        // 眩晕时方向设为远离家具
+                        if(Math.hypot(pdx,pdy)>0.01){
+                            const vLen=Math.hypot(pdx,pdy);
+                            c.vx=pdx/vLen; c.vy=pdy/vLen;
+                            c.targetVx=c.vx; c.targetVy=c.vy;
+                        }
                     }
+                    c.curSpd *= 0.5;
+                    c.collCooldown = 0.05;
                 } else {
                     // 不眩晕：推出 + 减速 + 沿边滑行（防哆嗦）
                     const p=pushOut(c.x,c.y,c.r+10,f.x,f.y,f.w,f.h);
@@ -1003,7 +1042,7 @@ function catCatchHamster(){
     const dLen=Math.hypot(dx,dy);
     if(dLen>0.01){dx/=dLen; dy/=dLen;}
     // 老鼠被撞飞，但逐步检测不穿障碍物
-    const knockback=35;
+    const knockback=20;
     let remaining=knockback;
     const step=5;
     while(remaining>0){
@@ -1212,7 +1251,7 @@ function startLevel(lid){
     G.currentLevel=lid; G.scene='game'; G.state='opening';
     G.openingTimer=0; G.lives=3; G.foodCollected=0;
     G.foodDropped=[]; G.catHits=0; G.shakeTimer=0; G.redFlash=0;
-    G.alertValue=0; G.paused=false; G.selectedTrap=null;
+    G.alertValue=0; G.paused=false; G.selectedTrap=null; G.countdown=-1;
     const lv=LEVELS[lid-1];
     G.energy=lv.energy; G.maxEnergy=lv.energy;
     generateMap(lid);
@@ -1316,11 +1355,31 @@ function updateOpening(dt){
     } else if(G.openingTimer<9.0){
         G.camera.targetX=G.ratHole.x; G.camera.targetY=G.ratHole.y; G.camera.targetZoom=0.8;
         if(isL1) G.openingText='接下来就看你的了！';
-    } else {
-        G.state='prepare'; G.prepareTimer=0;
-        // 从老鼠身上平滑过渡到准备阶段，不跳回全局
-        G.camera.targetZoom=0.8;
+    } else if(G.openingTimer<10.0){
+        // 镜头移到老鼠身上
+        if(G.hamster){
+            G.camera.targetX=G.hamster.x; G.camera.targetY=G.hamster.y; G.camera.targetZoom=1.2;
+        }
         G.openingText='';
+        G.countdown = 3;
+    } else if(G.openingTimer<11.0){
+        G.countdown = 2;
+        if(G.hamster){
+            G.camera.targetX=G.hamster.x; G.camera.targetY=G.hamster.y; G.camera.targetZoom=1.2;
+        }
+    } else if(G.openingTimer<12.0){
+        G.countdown = 1;
+        if(G.hamster){
+            G.camera.targetX=G.hamster.x; G.camera.targetY=G.hamster.y; G.camera.targetZoom=1.2;
+        }
+    } else if(G.openingTimer<12.5){
+        G.countdown = 0; // GO!
+        if(G.hamster){
+            G.camera.targetX=G.hamster.x; G.camera.targetY=G.hamster.y; G.camera.targetZoom=1.2;
+        }
+    } else {
+        // 自动开始行动
+        startAction();
     }
 }
 
@@ -1779,14 +1838,31 @@ function drawOpeningUI(){
     ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(0,0,G.W,G.H);
     ctx.fillStyle='#FFF'; ctx.font='18px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillText(`第${G.currentLevel}关 - ${LEVELS[G.currentLevel-1].name}`,G.W/2,G.H/2);
-    // 第1关开场引导文字
+    // 第1关开场引导文字 + 仙人
     if(G.openingText){
         ctx.fillStyle='rgba(255,255,255,0.92)';
-        const bw=G.W-90, bh=50, bx=45, by=G.H-160;
+        const bw=G.W-90, bh=55, bx=45, by=G.H-170;
         rRect(bx,by,bw,bh,15); ctx.fill();
         ctx.strokeStyle=C.darkBrown; ctx.lineWidth=2; rRect(bx,by,bw,bh,15); ctx.stroke();
-        ctx.fillStyle='#333'; ctx.font='15px sans-serif';
-        ctx.fillText(G.openingText,bx+bw/2,by+bh/2);
+        // 仙人图片
+        if(IMAGES.sage && IMAGES.sage.complete){
+            ctx.drawImage(IMAGES.sage, bx+10, by+8, 38, 38);
+        } else {
+            ctx.font='28px serif'; ctx.textAlign='left';
+            ctx.fillText('🧙',bx+8,by+30);
+        }
+        ctx.fillStyle='#333'; ctx.font='15px sans-serif'; ctx.textAlign='center';
+        ctx.fillText(G.openingText,bx+bw/2+15,by+bh/2);
+    }
+    // 321倒计时
+    if(G.countdown>=0){
+        ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,G.W,G.H);
+        ctx.fillStyle='#FFD700'; ctx.font='bold 80px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        if(G.countdown===0){
+            ctx.fillText('GO!',G.W/2,G.H/2);
+        } else {
+            ctx.fillText(String(G.countdown),G.W/2,G.H/2);
+        }
     }
 }
 
