@@ -1375,7 +1375,7 @@ function startAction(){
     G.camera.targetX=G.hamster.x; G.camera.targetY=G.hamster.y;
     // 第1关引导：等猫开始追时才弹
     if(G.currentLevel===1){
-        G.tutorial={active:false, step:0, timer:0, text:'', prevCatStunned:false, waitChase:true};
+        G.tutorial={active:false, step:0, timer:0, text:'', prevCatStunned:false, waitFood:true};
     }
 }
 function endGame(won){
@@ -1532,6 +1532,20 @@ function updateAction(dt){
                 G.foodCollected++; h.stealing=false; h.stealTarget=null;
                 h.stealProgress=0; h.face='happy';
                 setTimeout(()=>{if(G.hamster) G.hamster.face='normal';},1000);
+                // 第一关：偷到食物后猫立马惊醒！
+                if(G.currentLevel===1 && G.cat && G.cat.state==='sleeping'){
+                    G.cat.state='surprised';
+                    G.cat.face='surprised';
+                    G.cat.surprisedTimer=2.0;
+                    G.cat.catImg='catSurprise';
+                    G.sageHint={text:'哎呀妈呀！偷到吃的把猫吵醒了！快躲到家什后面！',timer:4.0};
+                    // 激活引导教程
+                    if(G.tutorial && !G.tutorial.active && G.tutorial.waitFood){
+                        G.tutorial.active=true;
+                        G.tutorial.waitFood=false;
+                        G.tutorial.timer=0;
+                    }
+                }
             }
         } else {
             // 离开食物范围，取消偷取
@@ -1589,12 +1603,9 @@ function updateTutorial(){
     const t=G.tutorial, h=G.hamster, c=G.cat;
     if(!t) return;
 
-    // 等猫追时才激活引导
-    if(t.waitChase){
-        if(c && c.state==='chase'){
-            t.active=true; t.waitChase=false; t.timer=0;
-        }
-        return;
+    // 第一关：等偷到食物后才激活引导
+    if(t.waitFood){
+        return; // 由 updateAction 中的食物偷取逻辑激活
     }
     if(!t.active) return;
 
@@ -1620,31 +1631,31 @@ function updateTutorial(){
     const catVisible=catOnScreen();
 
     switch(t.step){
-    case 0: // 引导玩家靠近家具
-        t.text='靠近那些发光的家什，让它们帮你挡一哈~';
+    case 0: // 偷到食物后猫惊醒，指引玩家躲到家具旁
+        t.text='哎呀妈呀！猫醒了！快躲到家什后面！';
         if(nearFurn && t.timer>1.5){t.step=1; t.timer=0;}
         break;
-    case 1: // 等猫看到老鼠，开始追
-        t.text='猫醒了！快站到家具旁边莫动~';
+    case 1: // 等猫追过来
+        t.text='莫慌！站到家具旁边莫动~等瓜猫冲过来！';
         if(c&&c.state==='chase' && d<300 && nearFurn){t.step=2; t.timer=0;}
         break;
-    case 2: // 稳住别动，等猫靠近
-        t.text='稳住！等那个瓜猫冲过来...';
+    case 2: // 等猫靠近
+        t.text='稳住！等那个瓜猫再靠近点...';
         if(c&&c.state==='chase' && d<100){t.step=3; t.timer=0;}
         break;
-    case 3: // 快跑开
-        t.text='就是现在！快跑开让猫撞家什！';
+    case 3: // 闪开让猫撞家具
+        t.text='就是现在！快闪开让猫撞家什！';
         if(c&&c.state==='stunned'){t.step=4; t.timer=0; t.prevCatStunned=true;}
         break;
-    case 4: // 猫撞晕了，去偷食物
-        t.text='猫撞晕了！快去偷好吃的！';
-        if(G.foodCollected>0){t.step=5; t.timer=0;}
+    case 4: // 猫撞晕了，快跑回鼠洞
+        t.text='猫撞晕了！快跑回鼠洞！';
+        if(G.foodCollected>0 && dist(h,G.ratHole)<h.r+G.ratHole.r+20){t.step=5; t.timer=0;}
+        if(t.timer>6){t.step=5; t.timer=0;} // 6秒后自动进入下一步
         break;
-    case 5: // 提醒猫只能被撞晕两次
-        t.text='注意哈：猫只能被撞晕两次，莫浪费机会！';
-        if(t.timer>4){t.step=6; t.timer=0;}
+    case 5: // 完成
+        t.text='对头！回洞就安全了！';
+        if(t.timer>2){t.active=false;}
         break;
-    case 6: t.active=false; break;
     }
 }
 
@@ -2240,6 +2251,17 @@ function drawCat(){
         ctx.restore();
     }
     ctx.save(); ctx.translate(c.x,c.y);
+    // 睡觉 ZZZ 特效
+    if(c.state==='sleeping'){
+        const zzOffset = Math.sin(G.time*2)*3;
+        ctx.font='bold 16px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillStyle='#88AAFF';
+        ctx.fillText('Z', c.r+8, -c.r-18+zzOffset);
+        ctx.font='bold 12px sans-serif';
+        ctx.fillText('z', c.r+18, -c.r-26+zzOffset*0.7);
+        ctx.font='bold 10px sans-serif';
+        ctx.fillText('z', c.r+26, -c.r-32+zzOffset*0.5);
+    }
     // 警觉可视化
     if(c.state==='chase' || c.alertValue >= 100){
         const scale = 1 + Math.sin(G.time*8)*0.25;
