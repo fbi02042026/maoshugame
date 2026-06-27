@@ -47,17 +47,19 @@ def build_alias_map(skins):
     return mapping
 
 
-def match_skin(filename: str, alias_map: dict):
+def match_skin(filename: str, alias_map: dict, skins_by_id: dict):
     key = norm_key(filename)
     if key in alias_map:
         return alias_map[key]
-    # 皮肤N -> skin_0N
+    stem = Path(filename).stem.lower()
+    m = re.match(r"hamster_skin_(\d+)$", stem)
+    if m:
+        sid = f"skin_{int(m.group(1)):02d}"
+        return skins_by_id.get(sid)
     m = re.match(r"^皮肤(\d+)$", Path(filename).stem.replace(" ", ""))
     if m:
         sid = f"skin_{int(m.group(1)):02d}"
-        for skin in alias_map.values():
-            if skin["id"] == sid:
-                return skin
+        return skins_by_id.get(sid)
     return None
 
 
@@ -70,6 +72,7 @@ def main():
     tw = data["target_size"]["w"]
     th = data["target_size"]["h"]
     skins = data["skins"]
+    skins_by_id = {s["id"]: s for s in skins}
     alias_map = build_alias_map(skins)
 
     incoming.mkdir(parents=True, exist_ok=True)
@@ -83,9 +86,10 @@ def main():
     used_ids = set()
     copied = 0
     skipped = []
+    imported = []
 
     for src in pngs:
-        skin = match_skin(src.name, alias_map)
+        skin = match_skin(src.name, alias_map, skins_by_id)
         if not skin:
             skipped.append(src.name)
             print("跳过（未在 manifest 登记）:", src.name)
@@ -98,6 +102,7 @@ def main():
         resize_cover(img, tw, th).save(dst, optimize=True)
         print(f"OK {src.name} -> {dst.relative_to(ROOT).as_posix()} ({skin['id']} {skin['unlock']})")
         copied += 1
+        imported.append(skin)
 
     catalog = {
         "version": 1,
@@ -111,7 +116,7 @@ def main():
                 "unlock": s["unlock"],
                 "sort": s["sort"],
             }
-            for s in sorted(skins, key=lambda x: x["sort"])
+            for s in sorted(imported, key=lambda x: x["sort"])
         ],
     }
     catalog_path = ROOT / "assets" / "skins" / "skin_catalog.json"

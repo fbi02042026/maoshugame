@@ -63,12 +63,14 @@ IAA 无内购。原图放 `assets/incoming/pifu/`，运行 `python tools/import_
 | 文件 | 解锁方式 |
 |------|----------|
 | `hamster_skin_01.png` … `03` | 开局可选（`default`） |
-| `hamster_skin_04.png` | 连续登录 7 日（`login_day_7`） |
-| `hamster_skin_05.png` | 活动（`event`） |
-| `hamster_skin_06.png` | 看广告领取（`ad_reward`） |
-| `hamster_skin_07.png` | 任务奖励（`task`） |
+| `hamster_skin_04.png` | 登录 7 日（`login_day_7`） |
+| `hamster_skin_05.png` | 登录 14 日（`login_day_14`） |
+| `hamster_skin_06`–`10` | 看广告（`ad_reward`） |
+| `hamster_skin_11`–`15` | 任务（`task`） |
+| `hamster_skin_16`–`20` | 通关（`level_clear`） |
+| `hamster_skin_21`–`30` | 活动（`event`） |
 
-配置见 `tools/skin_manifest.json`，运行时读 `assets/skins/skin_catalog.json`。
+共 30 款，缺 `hamster_skin_07.png` 可跳过。配置见 `tools/skin_manifest.json`（可用 `python tools/gen_skin_manifest.py` 重新生成）。
 
 ## 九、打包压缩
 
