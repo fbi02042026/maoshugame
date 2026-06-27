@@ -1,38 +1,29 @@
-# 图片素材下载
+# 图片素材下载与替换
 
-## 一键打包（推荐）
+## 下载当前素材包
 
-下载 **`assets_pack.zip`**（约 3MB，含全部 PNG + 命名清单）：
+https://github.com/fbi02042026/maoshugame/raw/main/assets_pack.zip
 
-- **main 分支直链：**  
-  https://github.com/fbi02042026/maoshugame/raw/main/assets_pack.zip
+## 用你压缩后的图替换（推荐）
 
-- **最新开发分支直链：**  
-  https://github.com/fbi02042026/maoshugame/raw/cursor/pause-save-docs-test-1704/assets_pack.zip
+1. 解压 `assets_pack.zip`，在本地删好不要的旧图（角度不对的家具）
+2. 在**仓库根目录**执行（把路径改成你的）：
 
-在 GitHub 网页上也可以：**进入仓库 → 点 `assets_pack.zip` → 点右上角 Download 按钮**。
-
-## 不下载 zip 时
-
-直接在仓库里打开 **`assets/`** 文件夹，里面是全部单张 PNG。
-
-## 压缩替换流程
-
-1. 解压 `assets_pack.zip`
-2. 用压缩后的 PNG **按原文件名**覆盖
-3. 把文件放回仓库 `assets/` 目录，或放进 `assets/incoming/` 后运行：
-
-```bash
-python3 tools/setup_assets.py
+```bat
+python tools\import_assets_folder.py "C:\Users\Admin\Downloads\assets_pack\assets"
 ```
 
-## 摆放规则（与游戏一致）
+3. 重新打包并提交：
 
-| 类型 | 文件名前缀 | 摆放 |
-|------|-----------|------|
-| 上面靠墙 | `top_` | 房间最上方 |
-| 左右靠墙 | `wall_` | 左墙默认，右墙自动翻转 |
-| 装饰小件 | `decor_` | 空地随机 |
-| 大件家具 | `sofa_` `table_` 等 | 空地随机 |
-| 猫窝 | `catbed_` | 上方区域，随机选一个出生 |
-| 食物 | `food_` | 全图随机，每关不重复 |
+```bat
+python tools\repack_assets_zip.py
+git add assets assets_pack.zip hamster_battle.html
+git commit -m "更新压缩后的美术素材"
+git push
+```
+
+或在 GitHub 网页：**Upload files** → 把 `assets` 文件夹里所有 PNG 拖进 `assets/` 目录覆盖。
+
+## 已删除的旧版文件（不要再加回来）
+
+`fridge.png` `stove.png` `sofa.png` `chair.png` `table.png` `counter.png` `cabinet.png` `cabinet2.png` `catbed.png` `plant.png` `box.png` `cart.png` `coffeeTable.png` 以及旧 `food_nut.png` 等 — 请用 `top_*` `wall_*` `decor_*` `sofa_*` `food_*` 新命名。

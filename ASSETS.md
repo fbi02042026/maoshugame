@@ -60,6 +60,6 @@
 
 仓库根目录 `assets_pack.zip` 含全部 `assets/*.png`，解压替换或压缩后覆盖即可。
 
-## 九、旧素材（兼容保留）
+## 九、已废弃（勿再使用）
 
-`fridge.png`、`sofa.png`、`food_nut.png` 等旧文件仍在，新关卡优先用新命名素材。
+旧版 `fridge.png`、`sofa.png`、`chair.png` 等已删除，统一用 `top_*` / `wall_*` / `decor_*` / `sofa_*` 新素材。
