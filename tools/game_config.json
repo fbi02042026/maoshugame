@@ -1,0 +1,70 @@
+{
+  "version": "1.0",
+  "comment": "与 hamster_battle.html 同步的游戏数值配置，供 Cocos / Unity 读取。修改 HTML 时请一并更新此文件。",
+  "screen": { "width": 432, "height": 768 },
+  "map": { "width": 900, "height": 1300 },
+  "ratHole": { "x": 450, "y": 1260, "r": 24 },
+  "saveKey": "hamster_battle_save_v1",
+  "cat": {
+    "visionRange": 100,
+    "visionAngle": 1.5707963267948966,
+    "surpriseTime": 0.5,
+    "wakeChargeTime": 0.5,
+    "chaseSmokeTime": 0,
+    "chaseAccelTime": 1.0,
+    "chargeTime": 1.0,
+    "dashTime": 1.6,
+    "farDist": 130,
+    "alertReturn": 50,
+    "faceWakeDist": 4,
+    "maxStunHits": 3
+  },
+  "difficulty": {
+    "hamsterBaseSpeed": 1.93,
+    "hamsterSpeedBoost": 1.75,
+    "hamsterBoostDuration": 1.5,
+    "catBaseSpeed": 1.93,
+    "catChaseMultiplier": 1.0,
+    "catPatrolMultiplier": 0.5,
+    "catAccel": 6.0,
+    "catDecel": 2.5,
+    "catBaseTurnRate": 5.0,
+    "catStunDecay": 0.5,
+    "level1RoomScale": 0.5
+  },
+  "levels": [
+    { "id": 1, "name": "厨房", "food": 1, "catSpeed": 1.2, "alertSpeed": 0.4, "energy": 5, "traps": [] },
+    { "id": 2, "name": "客厅", "food": 3, "catSpeed": 1.4, "alertSpeed": 0.5, "energy": 6, "traps": ["banana"] },
+    { "id": 3, "name": "餐厅", "food": 4, "catSpeed": 1.6, "alertSpeed": 0.6, "energy": 7, "traps": ["banana", "mousetrap"] },
+    { "id": 4, "name": "卧室", "food": 9, "catSpeed": 1.8, "alertSpeed": 0.7, "energy": 7, "traps": ["banana", "mousetrap"] },
+    { "id": 5, "name": "书房", "food": 11, "catSpeed": 2.0, "alertSpeed": 0.8, "energy": 8, "traps": ["banana", "mousetrap", "bucket"] },
+    { "id": 6, "name": "阁楼", "food": 14, "catSpeed": 2.2, "alertSpeed": 0.9, "energy": 8, "traps": ["banana", "mousetrap", "bucket"] },
+    { "id": 7, "name": "地下室", "food": 17, "catSpeed": 2.4, "alertSpeed": 1.0, "energy": 9, "traps": ["banana", "mousetrap", "bucket", "pot"] },
+    { "id": 8, "name": "豪宅", "food": 20, "catSpeed": 2.6, "alertSpeed": 1.1, "energy": 10, "traps": ["banana", "mousetrap", "bucket", "pot"] }
+  ],
+  "traps": {
+    "banana": { "name": "香蕉皮", "energy": 1, "stun": 1.5, "icon": "🍌" },
+    "mousetrap": { "name": "捕鼠夹", "energy": 2, "stun": 2.2, "icon": "🪤" },
+    "bucket": { "name": "水桶", "energy": 2, "stun": 3.0, "icon": "🪣" },
+    "pot": { "name": "花盆", "energy": 3, "stun": 4.0, "icon": "🪴" }
+  },
+  "foodTypes": [
+    { "name": "烤鱼", "icon": "🐟", "img": "food_fish" },
+    { "name": "鸡腿", "icon": "🍗", "img": "food_chicken" },
+    { "name": "炸鸡腿", "icon": "🍗", "img": "food_chicken2" },
+    { "name": "大份坚果", "icon": "🥜", "img": "food_nuts_lg" },
+    { "name": "坚果", "icon": "🥜", "img": "food_nuts_sm" },
+    { "name": "葡萄", "icon": "🍇", "img": "food_grape" },
+    { "name": "草莓蛋糕", "icon": "🍰", "img": "food_cake_slice" },
+    { "name": "饼干", "icon": "🍪", "img": "food_cracker" },
+    { "name": "小面包", "icon": "🥐", "img": "food_bun" },
+    { "name": "长面包", "icon": "🥖", "img": "food_bread_tall" },
+    { "name": "法棍", "icon": "🥖", "img": "food_bread_long" },
+    { "name": "草莓", "icon": "🍓", "img": "food_strawberry_sm" },
+    { "name": "大草莓", "icon": "🍓", "img": "food_strawberry_lg" },
+    { "name": "奶酪", "icon": "🧀", "img": "food_cheese_sm" },
+    { "name": "大奶酪", "icon": "🧀", "img": "food_cheese_lg" },
+    { "name": "樱花糕", "icon": "🌸", "img": "food_wagashi_pink" },
+    { "name": "红豆糕", "icon": "🍡", "img": "food_wagashi_red" }
+  ]
+}
