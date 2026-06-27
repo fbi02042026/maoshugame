@@ -1,17 +1,8 @@
 # 图片素材下载与替换
 
 > **本地工作目录**：`E:\NewProject\maoshugame`（新资源放 `assets\incoming\`）  
-> **提交规则**：默认不 push，只有你让提交时才提交。详见根目录 **`备忘录.md`**。
-
-## 一键初始化本地目录（Windows）
-
-双击 `tools\setup_local_project.bat`，或在命令行：
-
-```bat
-mkdir E:\NewProject\maoshugame 2>nul
-cd /d E:\NewProject\maoshugame
-git clone https://github.com/fbi02042026/maoshugame.git .
-```
+> **拉代码/更新**：用 cmd 命令（见 **`备忘录.md`**），脚本可选。  
+> **提交规则**：默认不提交，只有你让「提交」时才 commit + push。
 
 ## 下载当前素材包
 
