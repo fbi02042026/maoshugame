@@ -1,99 +1,65 @@
 # 仓鼠大作战 - 美术素材清单
 
-## 一、角色（已完成 ✅）
+> 命名与尺寸见 `tools/asset_manifest.json`。新图放 `assets/incoming/` 后运行 `python3 tools/setup_assets.py`。
 
-### 猫（9张，已上传）
-| 文件名 | 用途 | 状态 |
-|--------|------|------|
-| `cat_sleep.png` | 猫睡觉 | ✅ |
-| `cat_stun.png` | 猫眩晕 | ✅ |
-| `cat_rage1.png` | 猫暴怒1 | ✅ |
-| `cat_rage2.png` | 猫暴怒2 | ✅ |
-| `cat_surprise.png` | 猫吃惊 | ✅ |
-| `cat_alert1.png` | 猫警戒1 | ✅ |
-| `cat_alert2.png` | 猫警戒2 | ✅ |
-| `cat_happy.png` | 猫开心 | ✅ |
-| `cat_angry.png` | 猫生气 | ✅ |
+## 一、角色（`assets/`）
 
-### 老鼠（3张，已上传）
-| 文件名 | 用途 | 状态 |
-|--------|------|------|
-| `mouse.png` | 老鼠正常 | ✅ |
-| `mouse_fail1.png` | 老鼠失败1 | ✅ |
-| `mouse_fail2.png` | 老鼠失败2 | ✅ |
+| 文件 | 用途 |
+|------|------|
+| `cat_sleep.png` … `cat_angry.png` | 猫 9 态 |
+| `mouse.png` | 老鼠 |
+| `mouse_fail1/2.png` | 失败（体积大，待压缩） |
+| `sage.png` | 仙人 |
 
----
+## 二、房间顶部（靠墙，不可碰撞）
 
-## 二、家具（13种，需要替换美术素材）
+| 文件 | 尺寸 | 摆放 |
+|------|------|------|
+| `top_stove.png` | 220×72 | 房间上方居中 |
+| `top_fridge_white.png` | 78×100 | 左上 |
+| `top_fridge_blue.png` | 72×96 | 右上 |
 
-### 靠墙家具（不可碰撞，纯装饰）
-| key | 名称 | 尺寸(w×h) | 第1关是否有 | 需要素材 |
-|-----|------|-----------|------------|---------|
-| `fridge` | 冰箱 | 110×65 | ✅ | 冰箱.png |
-| `stove` | 灶台 | 130×55 | ✅ | 灶台.png |
-| `counter` | 料理台 | 110×55 | ✅ | 料理台.png |
-| `cabinet` | 柜子 | 90×70 | ✅ | 柜子.png |
-| `cabinet2` | 柜子2 | 110×55 | ✅ | 柜子2.png |
-| `catbed` | 猫窝 | 110×55 | ✅ | 猫窝.png |
+## 三、侧墙（不可碰撞，右墙 flipX）
 
-### 中央家具（可碰撞，老鼠躲后面挡猫）
-| key | 名称 | 尺寸(w×h) | 使用场景 | 需要素材 |
-|-----|------|-----------|---------|---------|
-| `table` | 餐桌 | 130×85 | 方案A | 餐桌.png |
-| `chair` | 椅子 | 32×32 | 方案A | 椅子.png |
-| `sofa` | 沙发 | 160×65 | 方案B | 沙发.png |
-| `coffeeTable` | 茶几 | 90×55 | 方案B | 茶几.png |
-| `plant` | 盆栽 | 45×45 | 所有方案 | 盆栽.png |
-| `box` | 箱子 | 55×55 | 所有方案 | 箱子.png |
-| `cart` | 餐车 | 55×65 | 方案B | 餐车.png |
+| 文件 | 尺寸 |
+|------|------|
+| `wall_chair_brown.png` | 72×78 |
+| `wall_chair_grey.png` | 72×78 |
+| `wall_appliance_sm.png` | 52×72 |
+| `wall_fridge_tall.png` | 62×108 |
+| `wall_cabinet_tan.png` | 54×54 |
 
----
+## 四、装饰小件（可碰撞，短反弹+摇摆）
 
-## 三、食物（8种，目前用emoji，可替换为图片）
-| key | emoji | 名称 | 需要素材 |
-|-----|-------|------|---------|
-| `nut` | 🥜 | 坚果 | 坚果.png |
-| `cheese` | 🧀 | 奶酪 | 奶酪.png |
-| `grape` | 🍇 | 葡萄 | 葡萄.png |
-| `strawberry` | 🍓 | 草莓 | 草莓.png |
-| `cookie` | 🍪 | 饼干 | 饼干.png |
-| `croissant` | 🥐 | 牛角包 | 牛角包.png |
-| `donut` | 🍩 | 甜甜圈 | 甜甜圈.png |
-| `cake` | 🍰 | 蛋糕 | 蛋糕.png |
+| 文件 | 尺寸 |
+|------|------|
+| `decor_trash.png` | 36×40 |
+| `decor_bucket.png` | 34×36 |
+| `decor_mat.png` | 38×38 |
+| `decor_crate.png` / `decor_crate_strap.png` | 38–40 |
+| `decor_plant_*.png` / `decor_succulent.png` | 28–42 |
+| `decor_chest.png` | 38×34 |
 
----
+## 五、中央家具（可碰撞、可躲藏）
 
-## 四、陷阱（4种，目前用emoji，可替换为图片）
-| key | emoji | 名称 | 需要素材 |
-|-----|-------|------|---------|
-| `banana` | 🍌 | 香蕉皮 | 香蕉皮.png |
-| `mousetrap` | 🪤 | 捕鼠夹 | 捕鼠夹.png |
-| `bucket` | 🪣 | 水桶 | 水桶.png |
-| `pot` | 🪴 | 花盆 | 花盆.png |
+`sofa_*.png`、`table_round_*.png`、`bench_wood.png`、`cushion_square.png`、`chest_heart.png` 等，程序随机摆放。
 
----
+## 六、猫窝（3 选 1 出生点）
 
-## 五、UI/界面素材（需要设计）
-| 名称 | 用途 | 需要素材 |
-|------|------|---------|
-| 主菜单背景 | 开始界面 | 主菜单背景.png |
-| 关卡选择背景 | 选关界面 | 关卡选择背景.png |
-| 按钮 | 开始/重试/下一关 | 按钮.png |
-| 摇杆底盘 | 虚拟摇杆 | 摇杆底盘.png |
-| 摇杆手柄 | 虚拟摇杆 | 摇杆手柄.png |
-| 能量图标 | ⚡替代 | 能量.png |
-| 爱心图标 | ❤️替代 | 爱心.png |
+| 文件 | 尺寸 |
+|------|------|
+| `catbed_grey.png` | 76×58 |
+| `catbed_pink.png` | 76×58 |
+| `catbed_round.png` | 74×56 |
 
----
+## 七、食物（17 种，每关随机不重复）
 
-## 六、目前不需要替换的（emoji足够）
-- 食物：🥜🧀🍇🍓🍪🥐🍩🍰
-- 陷阱：🍌🪤🪣🪴
-- 警觉：❗❓
-- 文字：喵!
+`food_fish.png`、`food_chicken.png`、`food_nuts_lg.png` … `food_wagashi_red.png`（均 32×32）
 
-## 优先替换建议
-1. **家具（13种）** - 对画面影响最大，目前是纯色矩形
-2. **食物（8种）** - 提升画面丰富度
-3. **陷阱（4种）** - 提升策略感
-4. **UI素材** - 等界面定下来再换
+## 八、打包压缩
+
+仓库根目录 `assets_pack.zip` 含全部 `assets/*.png`，解压替换或压缩后覆盖即可。
+
+## 九、旧素材（兼容保留）
+
+`fridge.png`、`sofa.png`、`food_nut.png` 等旧文件仍在，新关卡优先用新命名素材。

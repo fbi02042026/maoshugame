@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>仓鼠大作战</title>
+<link rel="preload" href="assets/mouse.png" as="image">
+<link rel="preload" href="assets/cat_sleep.png" as="image">
+<link rel="preload" href="assets/cat_surprise.png" as="image">
+<link rel="preload" href="assets/cat_rage1.png" as="image">
+<link rel="preload" href="assets/cat_alert1.png" as="image">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; height: 100%; background: #1a1a2e; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
@@ -22,6 +27,18 @@ const ctx = canvas.getContext('2d');
 
 // ---- 常量 ----
 const GW = 432, GH = 768;
+const CAT_VISION_RANGE = 100;       // 视野距离(px)
+const CAT_VISION_ANGLE = Math.PI/2;   // 视野角度 90°
+const CAT_SURPRISE_TIME = 0.5;        // 吃惊时间(s)
+const CAT_WAKE_CHARGE_TIME = 0.5;     // 唤醒后蓄力时间(s)
+const CAT_CHASE_SMOKE_TIME = 0;       // 追逐前烟雾（唤醒后直接加速）
+const CAT_CHASE_ACCEL_TIME = 1.0;     // 0→全速加速时间(s)
+const CAT_CHARGE_TIME = 1.0;          // 远距离窜出蓄力(s)
+const CAT_DASH_TIME = 1.6;            // 窜出持续时间(s)
+const CAT_FAR_DIST = 130;             // 触发蓄力的距离
+const CAT_ALERT_RETURN = 50;          // 警戒降到此值才回窝
+const CAT_FACE_WAKE_DIST = 4;       // 贴脸唤醒额外距离(px)
+const CAT_MAX_STUN_HITS = 3;        // 累计眩晕3次后只反弹、不再眩晕
 
 // ---- 屏幕适配 ----
 function resizeCanvas() {
@@ -61,28 +78,68 @@ const G = {
     touchJoy: { active: false, id: -1, startX: 0, startY: 0, dx: 0, dy: 0 },
     selectedTrap: null, alertValue: 0, selectedBananaTrap: false,
     animFrame: 0, bestStars: {},
+    canPlay: false,
+    foodStolen: false,
+    spawnCatBed: null,
 };
 
-// ---- 图片素材 ----
+// ---- 存档 ----
+const SAVE_KEY = 'hamster_battle_save_v1';
+function loadSave(){
+    try{
+        const raw = localStorage.getItem(SAVE_KEY);
+        if(!raw) return;
+        const data = JSON.parse(raw);
+        if(typeof data.maxUnlocked === 'number') G.maxUnlocked = Math.max(1, Math.min(8, data.maxUnlocked));
+        if(data.bestStars && typeof data.bestStars === 'object') G.bestStars = data.bestStars;
+    }catch(e){}
+}
+function saveProgress(){
+    try{
+        localStorage.setItem(SAVE_KEY, JSON.stringify({
+            maxUnlocked: G.maxUnlocked,
+            bestStars: G.bestStars,
+        }));
+    }catch(e){}
+}
+
+// ---- 图片素材（分阶段加载：核心素材优先） ----
 const IMAGES = {};
 let imagesLoaded = 0;
+let imagesTotal = 0;
+let criticalLoaded = 0;
+let criticalTotal = 0;
+function loadOneImage(k, src, isCritical){
+    IMAGES[k] = new Image();
+    IMAGES[k].onload = ()=>{
+        imagesLoaded++;
+        if(isCritical){
+            criticalLoaded++;
+            if(criticalLoaded >= criticalTotal) G.canPlay = true;
+        }
+    };
+    IMAGES[k].onerror = ()=>{ imagesLoaded++; if(isCritical){ criticalLoaded++; if(criticalLoaded>=criticalTotal) G.canPlay=true; } IMAGES[k]._failed=true; };
+    IMAGES[k].src = src;
+}
 function loadImages(){
-    const map = {
+    const critical = {
         mouse: 'assets/mouse.png',
         catSleep: 'assets/cat_sleep.png',
         catStun: 'assets/cat_stun.png',
         catRage1: 'assets/cat_rage1.png',
-        catRage2: 'assets/cat_rage2.png',
         catSurprise: 'assets/cat_surprise.png',
         catAlert1: 'assets/cat_alert1.png',
+        catAngry: 'assets/cat_angry.png',
+        mouseFail1: 'assets/mouse_fail1.png',
+        sage: 'assets/sage.png',
+        sofa: 'assets/sofa.png',
+        box: 'assets/box.png',
+    };
+    const deferred = {
+        catRage2: 'assets/cat_rage2.png',
         catAlert2: 'assets/cat_alert2.png',
         catHappy: 'assets/cat_happy.png',
-        catAngry: 'assets/cat_angry.png',
-        catNormal: 'assets/cat_sleep.png',
-        mouseFail1: 'assets/mouse_fail1.png',
         mouseFail2: 'assets/mouse_fail2.png',
-        sage: 'assets/sage.png',
-        // 家具图片
         fridge: 'assets/fridge.png',
         stove: 'assets/stove.png',
         counter: 'assets/counter.png',
@@ -91,12 +148,9 @@ function loadImages(){
         catbed: 'assets/catbed.png',
         table: 'assets/table.png',
         chair: 'assets/chair.png',
-        sofa: 'assets/sofa.png',
         coffeeTable: 'assets/coffeeTable.png',
         plant: 'assets/plant.png',
-        box: 'assets/box.png',
         cart: 'assets/cart.png',
-        // 食物图片
         food_nut: 'assets/food_nut.png',
         food_cheese: 'assets/food_cheese.png',
         food_grape: 'assets/food_grape.png',
@@ -104,15 +158,29 @@ function loadImages(){
         food_cookie: 'assets/food_cookie.png',
         food_croissant: 'assets/food_croissant.png',
         food_donut: 'assets/food_donut.png',
-        food_cake: 'assets/food_cake.png',
+        food_wagashi_red: 'assets/food_wagashi_red.png',
+        top_stove: 'assets/top_stove.png', top_fridge_white: 'assets/top_fridge_white.png', top_fridge_blue: 'assets/top_fridge_blue.png',
+        wall_chair_brown: 'assets/wall_chair_brown.png', wall_chair_grey: 'assets/wall_chair_grey.png',
+        wall_appliance_sm: 'assets/wall_appliance_sm.png', wall_fridge_tall: 'assets/wall_fridge_tall.png', wall_cabinet_tan: 'assets/wall_cabinet_tan.png',
+        decor_trash: 'assets/decor_trash.png', decor_bucket: 'assets/decor_bucket.png', decor_mat: 'assets/decor_mat.png',
+        decor_crate: 'assets/decor_crate.png', decor_crate_strap: 'assets/decor_crate_strap.png',
+        decor_plant_grey: 'assets/decor_plant_grey.png', decor_plant_brown: 'assets/decor_plant_brown.png',
+        decor_succulent: 'assets/decor_succulent.png', decor_chest: 'assets/decor_chest.png',
+        sofa_lg: 'assets/sofa_lg.png', sofa_md: 'assets/sofa_md.png', sofa_sm: 'assets/sofa_sm.png',
+        sofa_grey: 'assets/sofa_grey.png', sofa_corner: 'assets/sofa_corner.png', sofa_side: 'assets/sofa_side.png',
+        table_round_dark: 'assets/table_round_dark.png', table_round_light: 'assets/table_round_light.png',
+        table_round_wood: 'assets/table_round_wood.png', bench_wood: 'assets/bench_wood.png',
+        cushion_square: 'assets/cushion_square.png', chest_heart: 'assets/chest_heart.png',
+        catbed_grey: 'assets/catbed_grey.png', catbed_pink: 'assets/catbed_pink.png', catbed_round: 'assets/catbed_round.png',
     };
-    for(let k in map){
-        IMAGES[k] = new Image();
-        IMAGES[k].src = map[k];
-        IMAGES[k].onload = ()=>{ imagesLoaded++; };
-    }
+    imagesTotal = Object.keys(critical).length + Object.keys(deferred).length;
+    criticalTotal = Object.keys(critical).length;
+    imagesLoaded = 0; criticalLoaded = 0; G.canPlay = false;
+    for(let k in critical) loadOneImage(k, critical[k], true);
+    for(let k in deferred) loadOneImage(k, deferred[k], false);
 }
 loadImages();
+loadSave();
 
 // ---- 难度参数（后期可修改） ----
 const DIFFICULTY = {
@@ -225,11 +293,27 @@ const SFX = {
 };
 
 const FOOD_TYPES = [
-    { name:'坚果', icon:'🥜', img:'food_nut' }, { name:'奶酪', icon:'🧀', img:'food_cheese' },
-    { name:'葡萄', icon:'🍇', img:'food_grape' }, { name:'草莓', icon:'🍓', img:'food_strawberry' },
-    { name:'饼干', icon:'🍪', img:'food_cookie' }, { name:'牛角包', icon:'🥐', img:'food_croissant' },
-    { name:'甜甜圈', icon:'🍩', img:'food_donut' }, { name:'蛋糕', icon:'🍰', img:'food_cake' },
+    { name:'烤鱼', icon:'🐟', img:'food_fish' }, { name:'鸡腿', icon:'🍗', img:'food_chicken' },
+    { name:'炸鸡腿', icon:'🍗', img:'food_chicken2' }, { name:'大份坚果', icon:'🥜', img:'food_nuts_lg' },
+    { name:'坚果', icon:'🥜', img:'food_nuts_sm' }, { name:'葡萄', icon:'🍇', img:'food_grape' },
+    { name:'草莓蛋糕', icon:'🍰', img:'food_cake_slice' }, { name:'饼干', icon:'🍪', img:'food_cracker' },
+    { name:'小面包', icon:'🥐', img:'food_bun' }, { name:'长面包', icon:'🥖', img:'food_bread_tall' },
+    { name:'法棍', icon:'🥖', img:'food_bread_long' }, { name:'草莓', icon:'🍓', img:'food_strawberry_sm' },
+    { name:'大草莓', icon:'🍓', img:'food_strawberry_lg' }, { name:'奶酪', icon:'🧀', img:'food_cheese_sm' },
+    { name:'大奶酪', icon:'🧀', img:'food_cheese_lg' }, { name:'樱花糕', icon:'🌸', img:'food_wagashi_pink' },
+    { name:'红豆糕', icon:'🍡', img:'food_wagashi_red' },
+    // 兼容旧存档显示
+    { name:'坚果', icon:'🥜', img:'food_nut' }, { name:'甜甜圈', icon:'🍩', img:'food_donut' },
+    { name:'蛋糕', icon:'🍰', img:'food_cake' }, { name:'牛角包', icon:'🥐', img:'food_croissant' },
 ];
+function pickUniqueFoods(cnt){
+    const pool = FOOD_TYPES.slice(0, 17);
+    for(let i=pool.length-1;i>0;i--){
+        const j=randInt(0,i);
+        [pool[i],pool[j]]=[pool[j],pool[i]];
+    }
+    return pool.slice(0, Math.min(cnt, pool.length));
+}
 const C = {
     wall: '#B8E6D0', floor1: '#F0E4D4', floor2: '#E8DAC8',
     hamsterBody: '#F5E6C8', hamsterEar: '#FFD4D4',
@@ -264,18 +348,62 @@ function hasLineOfSight(x1,y1,x2,y2){
     }
     return true;
 }
+// 猫面朝方向（速度为0时用 dir 推算）
+function getCatFacingAngle(c){
+    const len = Math.hypot(c.vx, c.vy);
+    if(len > 0.05) return Math.atan2(c.vy, c.vx);
+    const dirs = [Math.PI/2, -Math.PI/2, Math.PI, 0]; // 下/上/左/右
+    return dirs[c.dir] || 0;
+}
 // 猫视野锥检测：老鼠是否在猫面朝方向的扇形区域内
 function isInCatVisionCone(c,h){
     const dx=h.x-c.x, dy=h.y-c.y;
     const d=Math.hypot(dx,dy);
-    if(d>100) return false; // 视野锥：100px
-    // 猫面朝方向
-    const catAngle = Math.atan2(c.vy, c.vx);
+    if(d>CAT_VISION_RANGE) return false;
+    const catAngle = getCatFacingAngle(c);
     const targetAngle = Math.atan2(dy, dx);
     let diff = targetAngle - catAngle;
     while(diff > Math.PI) diff -= Math.PI*2;
     while(diff < -Math.PI) diff += Math.PI*2;
-    return Math.abs(diff) < Math.PI*90/180; // 90度扇形
+    return Math.abs(diff) < CAT_VISION_ANGLE / 2; // 90°扇形
+}
+// 警戒条增长速率：越近越快，贴着猫约4秒满
+function calcAlertGain(c, h, d, hiding){
+    if(d >= CAT_VISION_RANGE) return 0;
+    const touchDist = c.r + h.r + 2;
+    const t = clamp((CAT_VISION_RANGE - d) / Math.max(1, CAT_VISION_RANGE - touchDist), 0, 1);
+    let rate = lerp(3, 25, t); // 贴着猫 25/s → 4s 满
+    if(hiding) rate *= 0.15;
+    if(isInCatVisionCone(c, h)) rate *= 1.3;
+    return rate;
+}
+function wakeCatSurprised(c){
+    if(c.state==='surprised' || c.state==='charging' || c.state==='chase') return;
+    c.state='surprised';
+    c.face='surprised';
+    c.surprisedTimer=CAT_SURPRISE_TIME;
+    c.catImg='catSurprise';
+    c.targetSpd=0; c.curSpd=0;
+    c.hasSeenHamster=true;
+    c.committedChase=true;
+    if(c.firstChase){
+        G.sageHint={text:'猫醒了！快跑！',timer:3.0};
+        c.firstChase=false;
+    }
+}
+function startCatChase(c, h){
+    c.state='chase';
+    c.face='chase';
+    c.chaseBuildup=CAT_CHASE_SMOKE_TIME; // 跳过烟雾，直接进入加速段
+    c.targetSpd=0;
+    c.curSpd=0;
+    c.hasSeenHamster=true;
+    if(h){
+        const d=dist(c,h);
+        const dx=h.x-c.x, dy=h.y-c.y;
+        const len=Math.hypot(dx,dy);
+        if(len>0.01){ c.vx=dx/len; c.vy=dy/len; c.targetVx=c.vx; c.targetVy=c.vy; }
+    }
 }
 function pushOut(cx,cy,cr,rx,ry,rw,rh){
     let nx=clamp(cx,rx,rx+rw), ny=clamp(cy,ry,ry+rh);
@@ -297,7 +425,7 @@ function isHamsterHiding(){
     const h=G.hamster;
     if(!h) return false;
     for(let f of G.furniture){
-        if(f.interactive && h.x>f.x && h.x<f.x+f.w && h.y>f.y && h.y<f.y+f.h){
+        if(f.interactive && f.hideable!==false && h.x>f.x && h.x<f.x+f.w && h.y>f.y && h.y<f.y+f.h){
             return true;
         }
     }
@@ -316,6 +444,162 @@ function rRect(x,y,w,h,r){
 function btnHit(bx,by,bw,bh,px,py){
     return px>=bx && px<=bx+bw && py>=by && py<=by+bh;
 }
+function wrapTextLines(text, maxWidth, font){
+    ctx.font = font;
+    const lines = [];
+    let line = '';
+    for(let i=0; i<text.length; i++){
+        const ch = text[i];
+        if(ch === '\n'){ lines.push(line); line = ''; continue; }
+        const test = line + ch;
+        if(line && ctx.measureText(test).width > maxWidth){
+            lines.push(line);
+            line = ch;
+        } else {
+            line = test;
+        }
+    }
+    if(line) lines.push(line);
+    return lines;
+}
+function drawTextBox(text, bx, by, bw, minBh, font, color, pad){
+    const maxW = bw - pad * 2;
+    const lines = wrapTextLines(text, maxW, font);
+    const lineH = Math.ceil(parseInt(font, 10) * 1.4) || 20;
+    const bh = Math.max(minBh, lines.length * lineH + pad * 2);
+    ctx.fillStyle='rgba(255,255,255,0.92)';
+    rRect(bx, by, bw, bh, 15); ctx.fill();
+    ctx.strokeStyle=C.darkBrown; ctx.lineWidth=2; rRect(bx, by, bw, bh, 15); ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.font = font;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const startY = by + bh/2 - (lines.length - 1) * lineH / 2;
+    for(let i=0; i<lines.length; i++){
+        ctx.fillText(lines[i], bx + bw/2, startY + i * lineH);
+    }
+    return bh;
+}
+function isGameInputBlocked(){
+    return G.paused || (G.scene==='game' && G.state==='action' && G.sageHint && G.sageHint.timer > 0);
+}
+function clampCatInBounds(c){
+    const pad = 18;
+    c.x = clamp(c.x, pad + c.r, G.mapW - pad - c.r);
+    c.y = clamp(c.y, pad + c.r, G.mapH - pad - c.r);
+}
+function isCatPursuing(c){
+    return c.state==='chase' || (c.state==='charging' && !c.wakeCharge);
+}
+function isCatFastEnough(c){
+    return c.dashTimer > 0 || c.curSpd >= c.chaseSpeed * 0.5;
+}
+// 绘制仙人（保持原始宽高比，不拉伸）
+function drawSageImage(cx, cy, maxH){
+    const img=IMAGES.sage;
+    if(!img || !img.complete || img._failed){
+        ctx.font='32px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('🧙', cx, cy - maxH/2);
+        return maxH;
+    }
+    const scale=maxH/img.naturalHeight;
+    const w=img.naturalWidth*scale, h=img.naturalHeight*scale;
+    ctx.drawImage(img, cx-w/2, cy-h, w, h);
+    return h;
+}
+function isClearSpot(x,y,r){
+    for(let f of G.furniture){
+        if(f.interactive && circRectHit(x,y,r,f.x,f.y,f.w,f.h)) return false;
+    }
+    for(let w of G.walls){
+        if(circRectHit(x,y,r,w.x,w.y,w.w,w.h)) return false;
+    }
+    return true;
+}
+function placePowerups(lid, isL1){
+    G.powerups=[];
+    const maxCnt = lid===3 ? 2 : (lid<=2 ? 1 : 0);
+    if(maxCnt<=0) return;
+    for(let attempt=0; attempt<40; attempt++){
+        let x, y;
+        if(isL1 && G.catPaths && G.catPaths[0]){
+            const g=G.catPaths[0];
+            x = g.x + rand(15, Math.max(20, g.w-15));
+            y = g.y + g.h/2 + rand(-50, 50);
+        } else {
+            x = rand(60, G.mapW-60);
+            y = rand(80, G.mapH-120);
+        }
+        if(dist({x,y}, G.ratHole) < 130) continue;
+        if(isClearSpot(x,y,22)){
+            G.powerups.push({x,y,type:'toycar',collected:false});
+            if(G.powerups.length>=maxCnt) break;
+        }
+    }
+}
+function getCatBedPos(){
+    const bed=G.spawnCatBed || G.furniture.find(f=>f.catbed);
+    if(bed) return {x:bed.x+bed.w/2, y:bed.y+bed.h/2};
+    return null;
+}
+function tickCatAbandon(c,h,d,dt){
+    if(!c.committedChase) return false;
+    const lv=LEVELS[G.currentLevel-1];
+    const outOfAlert = d > CAT_VISION_RANGE;
+    if(outOfAlert){
+        c.alertValue -= lv.alertSpeed * 5 * dt;
+    } else {
+        c.alertValue = 100;
+    }
+    c.alertValue = clamp(c.alertValue, 0, 100);
+    if(c.alertValue <= CAT_ALERT_RETURN){
+        c.state='returning';
+        c.committedChase=false;
+        c.dashTimer=0;
+        c.chargeTimer=0;
+        c.wakeCharge=false;
+        return true;
+    }
+    return false;
+}
+function catDeflectFromWall(c,nx,ny){
+    const tx1=-ny, ty1=nx, tx2=ny, ty2=-nx;
+    const dot1=c.vx*tx1+c.vy*ty1, dot2=c.vx*tx2+c.vy*ty2;
+    const dx=Math.abs(dot1)>=Math.abs(dot2)?tx1:tx2;
+    const dy=Math.abs(dot1)>=Math.abs(dot2)?ty1:ty2;
+    c.avoidUntil=G.time+1.0;
+    c.avoidVx=dx; c.avoidVy=dy;
+    c.vx=dx; c.vy=dy; c.targetVx=dx; c.targetVy=dy;
+    c.collCooldown=0.65;
+    c.curSpd=Math.min(c.curSpd*0.35, c.patrolSpeed*0.6);
+}
+function getCatChaseTarget(c,h){
+    if(!h) return {x:c.x,y:c.y};
+    if(hasLineOfSight(c.x,c.y,h.x,h.y)) return {x:h.x,y:h.y};
+    if(G.catPaths && G.catPaths.length){
+        const g=G.catPaths[0];
+        const gx=g.x+g.w/2, gy=g.y+g.h/2;
+        if(dist(c,{x:gx,y:gy})>20) return {x:gx,y:gy};
+    }
+    return {x:h.x,y:h.y};
+}
+function catDeflectFromFurniture(c,f){
+    const fcx=f.x+f.w/2, fcy=f.y+f.h/2;
+    let ax=c.x-fcx, ay=c.y-fcy;
+    let aLen=Math.hypot(ax,ay);
+    if(aLen<0.01){ ax=1; ay=0; aLen=1; }
+    ax/=aLen; ay/=aLen;
+    const tx1=-ay, ty1=ax, tx2=ay, ty2=-ax;
+    const dot1=c.vx*tx1+c.vy*ty1, dot2=c.vx*tx2+c.vy*ty2;
+    const dx=Math.abs(dot1)>=Math.abs(dot2)?tx1:tx2;
+    const dy=Math.abs(dot1)>=Math.abs(dot2)?ty1:ty2;
+    c.avoidUntil=G.time+0.9;
+    c.avoidVx=dx; c.avoidVy=dy;
+    c.vx=dx; c.vy=dy;
+    c.targetVx=dx; c.targetVy=dy;
+    c.collCooldown=0.55;
+    c.curSpd=Math.min(c.curSpd*0.35, c.patrolSpeed*0.5);
+}
 
 // ============================================================
 // 坐标转换 - 获取canvas内坐标
@@ -331,126 +615,148 @@ function canvasCoord(clientX, clientY) {
 // ============================================================
 // 地图生成
 // ============================================================
+function addFurniture(item){
+    G.furniture.push({
+        shakeTimer:0, shakeAngle:0.14,
+        hideable: item.decor ? false : item.hideable!==false,
+        flipX: !!item.flipX,
+        decor: !!item.decor,
+        catbed: !!item.catbed,
+        ...item,
+    });
+}
+function furnitureOverlaps(x,y,w,h,pad){
+    pad=pad||10;
+    for(let f of G.furniture){
+        if(x+w+pad<=f.x || x>=f.x+f.w+pad || y+h+pad<=f.y || y>=f.y+f.h+pad) continue;
+        return true;
+    }
+    return false;
+}
+function placeTopWallFurniture(mw){
+    const T=18, y=T+4;
+    addFurniture({x:Math.floor(mw/2-110),y,w:220,h:72,type:'top_stove',name:'灶台',interactive:false,layer:'top'});
+    addFurniture({x:T+6,y:T+6,w:78,h:100,type:'top_fridge_white',name:'冰箱',interactive:false,layer:'top'});
+    addFurniture({x:mw-T-6-72,y:T+8,w:72,h:96,type:'top_fridge_blue',name:'冰箱',interactive:false,layer:'top'});
+}
+function placeSideWallFurniture(mw, mh){
+    const T=18;
+    const left=[
+        {type:'wall_chair_brown',w:72,h:78,y:150},
+        {type:'wall_fridge_tall',w:62,h:108,y:300},
+        {type:'wall_cabinet_tan',w:54,h:54,y:480},
+    ];
+    const right=[
+        {type:'wall_chair_grey',w:72,h:78,y:180},
+        {type:'wall_appliance_sm',w:52,h:72,y:340},
+        {type:'wall_cabinet_tan',w:54,h:54,y:520},
+    ];
+    left.forEach(d=>addFurniture({x:T+4,y:d.y,w:d.w,h:d.h,type:d.type,name:'墙边',interactive:false,layer:'side'}));
+    right.forEach(d=>addFurniture({x:mw-T-4-d.w,y:d.y,w:d.w,h:d.h,type:d.type,name:'墙边',interactive:false,layer:'side',flipX:true}));
+}
+function placeCatBeds(mw){
+    const defs=[
+        {type:'catbed_grey',w:76,h:58,x:mw*0.20,y:92},
+        {type:'catbed_pink',w:76,h:58,x:mw*0.52,y:86},
+        {type:'catbed_round',w:74,h:56,x:mw*0.76,y:98},
+    ];
+    const beds=[];
+    defs.forEach(d=>{
+        const bed={x:d.x-d.w/2,y:d.y,w:d.w,h:d.h,type:d.type,name:'猫窝',interactive:false,catbed:true,layer:'catbed'};
+        addFurniture(bed);
+        beds.push(bed);
+    });
+    G.spawnCatBed=beds[randInt(0,beds.length-1)];
+}
+function placeDecorations(mw, mh, count){
+    const defs=[
+        {type:'decor_trash',w:36,h:40},{type:'decor_bucket',w:34,h:36},{type:'decor_mat',w:38,h:38},
+        {type:'decor_crate',w:38,h:38},{type:'decor_crate_strap',w:40,h:40},{type:'decor_plant_grey',w:36,h:42},
+        {type:'decor_plant_brown',w:34,h:40},{type:'decor_succulent',w:28,h:32},{type:'decor_chest',w:38,h:34},
+    ];
+    let placed=0;
+    for(let attempt=0; attempt<100 && placed<count; attempt++){
+        const d=defs[randInt(0,defs.length-1)];
+        const x=rand(50,mw-d.w-50), y=rand(130,mh-200);
+        if(!furnitureOverlaps(x,y,d.w,d.h,12)){
+            addFurniture({x,y,w:d.w,h:d.h,type:d.type,name:'装饰',interactive:true,decor:true,layer:'decor'});
+            placed++;
+        }
+    }
+}
+function placeFreeFurniture(mw, mh, lid){
+    const pool=lid===1
+        ? [{type:'sofa_lg',w:150,h:68}]
+        : [
+            {type:'sofa_lg',w:150,h:68},{type:'sofa_md',w:120,h:62},{type:'sofa_grey',w:130,h:64},
+            {type:'table_round_dark',w:88,h:88},{type:'table_round_light',w:82,h:82},
+            {type:'sofa_corner',w:140,h:110},{type:'bench_wood',w:110,h:48},{type:'chest_heart',w:56,h:48},
+        ];
+    const pickCnt=lid===1?1:randInt(2,Math.min(4,pool.length));
+    const sh=[...pool].sort(()=>Math.random()-0.5);
+    for(let i=0;i<pickCnt;i++){
+        const d=sh[i];
+        for(let attempt=0;attempt<40;attempt++){
+            const x=rand(80,mw-d.w-80), y=rand(200,mh-d.h-160);
+            if(!furnitureOverlaps(x,y,d.w,d.h,16)){
+                addFurniture({x,y,w:d.w,h:d.h,type:d.type,name:'家具',interactive:true,layer:'free'});
+                break;
+            }
+        }
+    }
+}
 function generateMap(lid) {
     const isL1 = (lid===1);
     const roomScale = isL1 ? DIFFICULTY.level1RoomScale : 1.0;
     G.mapW = Math.floor(900 * roomScale); G.mapH = Math.floor(1300 * roomScale);
     G.walls = []; G.furniture = []; G.foods = [];
-    G.placedTraps = []; G.furnitureHits = {};
-    const T = 18; // 墙壁厚度不缩放
+    G.placedTraps = []; G.spawnCatBed=null;
+    const T = 18;
     G.walls.push(
         {x:0,y:0,w:G.mapW,h:T},{x:0,y:G.mapH-T,w:G.mapW,h:T},
         {x:0,y:0,w:T,h:G.mapH},{x:G.mapW-T,y:0,w:T,h:G.mapH}
     );
     G.ratHole = { x: G.mapW/2, y: G.mapH-35, r: 24 };
 
-    // 靠墙家具（尺寸不缩放）
-    const wf = isL1 ? [
-        // 第1关简化：只有3个装饰家具（靠墙，不可碰撞）
-        {x:30, y:25, w:110,h:65, type:'fridge',name:'冰箱',interactive:false},
-        {x:170,y:25, w:130,h:55, type:'stove',name:'灶台',interactive:false},
-        {x:G.mapW-140, y:G.mapH-80, w:110,h:55, type:'catbed',name:'猫窝',interactive:false},
-    ] : [
-        {x:35, y:35, w:110,h:65, type:'fridge',name:'冰箱',interactive:false},
-        {x:200,y:35, w:130,h:55, type:'stove',name:'灶台',interactive:false},
-        {x:410,y:35, w:110,h:55, type:'counter',name:'料理台',interactive:false},
-        {x:680,y:35, w:90, h:70, type:'cabinet',name:'柜子',interactive:false},
-        {x:35, y:G.mapH-95, w:110,h:55, type:'cabinet2',name:'柜子',interactive:false},
-        {x:720,y:G.mapH-95, w:110,h:55, type:'catbed',name:'猫窝',interactive:false},
-    ];
-    wf.forEach(f=>G.furniture.push({...f,hitCount:0,maxHits:3,gray:false}));
+    placeTopWallFurniture(G.mapW);
+    placeCatBeds(G.mapW);
+    if(!isL1) placeSideWallFurniture(G.mapW, G.mapH);
 
-    // 中央家具（可碰撞障碍物）
-    const scheme = randInt(0,1); // 第1关只有2种方案
-    const cf = [];
     if(isL1){
-        // 第1关：中间一道障碍墙，两侧各留34px窄道（猫直径36过不去，老鼠直径28能过）
-        const wallY = Math.floor(G.mapH * 0.45);
-        cf.push(
-            {x:52, y:wallY, w:160,h:65, type:'sofa',name:'沙发',interactive:true},
-            {x:213,y:wallY+10, w:55, h:55, type:'box',name:'箱子',interactive:true},
-            {x:269,y:wallY-5, w:130,h:85, type:'table',name:'餐桌',interactive:true},
-        );
-        // 窄道位置记录（用于闪光提示）
-        G.narrowGaps = [
-            {x:18, y:wallY, w:34, h:65, side:'left'},   // 左侧窄道
-            {x:G.mapW-18-33, y:wallY-5, w:33, h:85, side:'right'}, // 右侧窄道
-        ];
-    } else if(lid===2){
-        // 第二关客厅布局：L型沙发+茶几+盆栽
-        cf.push(
-            {x:120,y:350,w:200,h:65,type:'sofa',name:'沙发',interactive:true},
-            {x:120,y:415,w:65,h:120,type:'sofa',name:'沙发',interactive:true},
-            {x:200,y:480,w:120,h:60,type:'coffeeTable',name:'茶几',interactive:true},
-            {x:550,y:300,w:45,h:45,type:'plant',name:'盆栽',interactive:true},
-            {x:650,y:500,w:55,h:65,type:'cart',name:'餐车',interactive:true},
-            {x:400,y:650,w:55,h:55,type:'box',name:'箱子',interactive:true},
-        );
+        const wallY = Math.floor(G.mapH * 0.42);
+        const barrierX = 50, barrierW = Math.floor(G.mapW * 0.53);
+        addFurniture({x:barrierX,y:wallY,w:barrierW,h:70,type:'sofa_lg',name:'沙发',interactive:true,layer:'free'});
+        G.narrowGaps=[{x:18,y:wallY,w:28,h:70,side:'left',type:'mouse'}];
+        G.catPaths=[{x:barrierX+barrierW+8,y:wallY,w:Math.max(80,G.mapW-barrierX-barrierW-26),h:70,type:'cat'}];
+        placeDecorations(G.mapW, G.mapH, 2);
     } else {
-        if(scheme===0){
-            cf.push(
-                {x:340,y:420,w:130,h:85,type:'table',name:'餐桌',interactive:true},
-                {x:325,y:380,w:32, h:32,type:'chair',name:'椅子',interactive:true},
-                {x:453,y:380,w:32, h:32,type:'chair',name:'椅子',interactive:true},
-                {x:325,y:515,w:32, h:32,type:'chair',name:'椅子',interactive:true},
-                {x:453,y:515,w:32, h:32,type:'chair',name:'椅子',interactive:true},
-                {x:140,y:320,w:45, h:45,type:'plant',name:'盆栽',interactive:true},
-                {x:690,y:460,w:55, h:55,type:'box',name:'箱子',interactive:true},
-            );
-        } else if(scheme===1){
-            cf.push(
-                {x:90, y:380,w:160,h:65,type:'sofa',name:'沙发',interactive:true},
-                {x:140,y:490,w:90, h:55,type:'coffeeTable',name:'茶几',interactive:true},
-                {x:640,y:330,w:45, h:45,type:'plant',name:'盆栽',interactive:true},
-                {x:700,y:540,w:55, h:65,type:'cart',name:'餐车',interactive:true},
-                {x:380,y:700,w:55, h:55,type:'box',name:'箱子',interactive:true},
-            );
-        } else {
-            cf.push(
-                {x:90, y:280,w:85,h:85,type:'sofa',name:'沙发',interactive:true},
-                {x:280,y:380,w:85,h:55,type:'coffeeTable',name:'茶几',interactive:true},
-                {x:590,y:280,w:45,h:45,type:'plant',name:'盆栽',interactive:true},
-                {x:480,y:580,w:55,h:55,type:'box',name:'箱子',interactive:true},
-                {x:180,y:680,w:55,h:55,type:'box',name:'箱子',interactive:true},
-                {x:640,y:680,w:55,h:55,type:'box',name:'箱子',interactive:true},
-                {x:380,y:230,w:45,h:45,type:'plant',name:'盆栽',interactive:true},
-            );
+        G.narrowGaps=[]; G.catPaths=[];
+        placeFreeFurniture(G.mapW, G.mapH, lid);
+        placeDecorations(G.mapW, G.mapH, Math.min(9, 3+lid));
+    }
+
+    const lv=LEVELS[lid-1], cnt=lv.food;
+    const foodTypes=pickUniqueFoods(cnt);
+    const margin=36;
+    const yMin=isL1?70:100;
+    const yMax=G.mapH-margin-60;
+    for(let i=0;i<cnt;i++){
+        let placed=false;
+        for(let attempt=0;attempt<60;attempt++){
+            const fx=rand(margin,G.mapW-margin);
+            const fy=rand(yMin,yMax);
+            if(!furnitureOverlaps(fx-18,fy-18,36,36,10) && dist({x:fx,y:fy},G.ratHole)>80){
+                G.foods.push({x:fx,y:fy,type:foodTypes[i],collected:false,stealing:false,stealProgress:0});
+                placed=true;
+                break;
+            }
+        }
+        if(!placed){
+            G.foods.push({x:rand(margin,G.mapW-margin),y:rand(yMin,yMax),type:foodTypes[i],collected:false,stealing:false,stealProgress:0});
         }
     }
-    cf.forEach(f=>G.furniture.push({...f,hitCount:0,maxHits:3,gray:false}));
-
-    // 食物
-    const lv=LEVELS[lid-1], cnt=lv.food;
-    const cands = isL1 ? [
-        // 第1关：1个食物，放在猫后面（房间上半部分，远离鼠洞）
-        {x:100,y:120},{x:200,y:100},{x:320,y:130},{x:400,y:110},
-    ] : [
-        {x:200,y:120},{x:500,y:110},{x:750,y:180},
-        {x:140,y:580},{x:450,y:300},{x:600,y:420},
-        {x:300,y:780},{x:500,y:720},{x:750,y:620},
-        {x:100,y:880},{x:380,y:870},{x:700,y:800},
-        {x:200,y:1020},{x:500,y:960},{x:700,y:960},
-        {x:140,y:1120},{x:400,y:1080},{x:650,y:1060},
-        {x:300,y:580},{x:550,y:520},
-    ];
-    const sh = [...cands].sort(()=>Math.random()-0.5);
-    const margin = 30; // 距离边缘至少30px
-    for(let i=0;i<Math.min(cnt,sh.length);i++){
-        const fx = Math.max(margin, Math.min(G.mapW-margin, sh[i].x));
-        const fy = Math.max(margin, Math.min(G.mapH-margin, sh[i].y));
-        G.foods.push({x:fx, y:fy, type:FOOD_TYPES[i%FOOD_TYPES.length], collected:false, stealing:false, stealProgress:0});
-    }
     G.foodTarget = cnt;
-
-    // 道具
-    G.powerups = [];
-    if(G.currentLevel <= 2){
-        G.powerups.push({x: G.mapW/2, y: G.mapH/2, type:'toycar', collected:false});
-    }
-    if(G.currentLevel === 3){
-        G.powerups.push({x: G.mapW/2-60, y: G.mapH/2, type:'toycar', collected:false});
-        G.powerups.push({x: G.mapW/2+60, y: G.mapH/2, type:'toycar', collected:false});
-    }
+    placePowerups(lid, isL1);
 }
 
 // ============================================================
@@ -475,11 +781,18 @@ function createCat(){
     if(G.currentLevel===1){st='sleeping';tm=15;} // 第1关猫100%睡觉15秒
     else if(r<0.4){st='sleeping';tm=10;}else if(r<0.8){st='lazy';tm=8;}else{st='patrol';tm=0;}
     const starts = G.currentLevel === 1 ?
-        [{x:200,y:150},{x:350,y:180},{x:280,y:120},{x:150,y:200}] :
+        [{x:G.mapW*0.35,y:110},{x:G.mapW*0.62,y:130},{x:G.mapW*0.45,y:90},{x:G.mapW*0.28,y:150}] :
         [{x:600,y:280},{x:200,y:380},{x:700,y:460},{x:400,y:320}];
-    const sp=starts[randInt(0,starts.length-1)];
+    let sx, sy;
+    if(G.spawnCatBed){
+        sx=G.spawnCatBed.x+G.spawnCatBed.w/2;
+        sy=G.spawnCatBed.y+G.spawnCatBed.h/2;
+    } else {
+        const sp=starts[randInt(0,starts.length-1)];
+        sx=sp.x; sy=sp.y;
+    }
     return {
-        x:sp.x, y:sp.y, r:18, speed:DIFFICULTY.catBaseSpeed, dir:0,
+        x:sx, y:sy, r:18, speed:DIFFICULTY.catBaseSpeed, dir:0,
         state:st, stateTimer:tm, alertValue:0,
         targetX:0, targetY:0, patrolPts:[], patrolIdx:0,
         chaseSpeed:DIFFICULTY.catBaseSpeed * DIFFICULTY.catChaseMultiplier,
@@ -495,9 +808,8 @@ function createCat(){
         baseTurnRate:DIFFICULTY.catBaseTurnRate,    // 基础转向速率
         chaseBuildup:0,      // 追逐蓄力计时
         chaseBuildupTime:1.0, // 动态加速总时间（由距离决定）
-        lastState:'',        // 上一帧状态
         collCooldown:0,      // 碰撞冷却计时
-        catImg:'catNormal',  // 当前使用的猫图片key
+        catImg: st==='sleeping' ? 'catSleep' : 'catAlert1',
         catImgTimer:0,       // 图片切换计时器
         catImgVariant:0,     // 图片变体索引(0或1)
         altPhase:'main',     // 交替动画阶段: 'main'|'switched'
@@ -510,6 +822,11 @@ function createCat(){
         stuckX:0, stuckY:0, stuckTimer:0, // 卡住检测
         patrolRandomAngle:0, // 巡逻随机偏移角度
         patrolRandomTimer:0, // 巡逻随机偏移计时
+        hasSeenHamster:false,
+        committedChase:false,
+        abandonTimer:0,
+        chargeTimer:0, chargeCooldown:0, dashTimer:0, wakeCharge:false,
+        avoidUntil:0, avoidVx:0, avoidVy:0,
     };
 }
 function genPatrolPts(){
@@ -567,41 +884,34 @@ function updateCat(dt){
     const d=dist(c,h), lv=LEVELS[G.currentLevel-1];
     const hiding = isHamsterHiding();
 
-    // 仙人提示时猫也冻结不动
+    // 仙人提示期间：猫只换表情，不移动（玩家此时也不能动）
     if(G.sageHint && G.sageHint.timer > 0){
-        c.targetSpd = 0;
+        c.targetSpd=0; c.curSpd=0;
+        updateCatImg(c, dt);
         return;
     }
 
     // 状态切换检测（用于起跑效果）
     c.lastState = c.state;
 
-    // 统一的alertValue增长/下降（非chase/surprised/freeze/stunned/confused状态下）
-    // 警戒圈=视野=100px圆形。老鼠在警戒圈内警戒值增长，视野锥内增长更快
-    if(c.state !== 'chase' && c.state !== 'surprised' && c.state !== 'freeze' && c.state !== 'stunned' && c.state !== 'confused'){
-        if(d < 100) {
-            // 基础增长（警戒圈内）
-            let gain = lv.alertSpeed * 10 * dt;
-            // 如果在视野锥内，增长加速2.5倍
-            if(isInCatVisionCone(c,h)) {
-                gain *= 2.5;
-            }
-            if(hiding) gain *= 0.15; // 躲藏时增长极慢
-            // 距离越近增长越快
-            if(d < 50) gain *= 1.2;
-            c.alertValue += gain;
+    // 警戒条：靠近猫慢慢涨，满了醒（睡觉/巡逻/懒等状态均适用）
+    const faceDist = c.r + h.r + CAT_FACE_WAKE_DIST;
+    if(c.state !== 'chase' && c.state !== 'surprised' && c.state !== 'stunned' && c.state !== 'confused'){
+        if(d <= faceDist && (c.state==='sleeping' || c.state==='lazy' || c.state==='patrol')){
+            c.alertValue = 100;
+        } else if(d < CAT_VISION_RANGE) {
+            c.alertValue += calcAlertGain(c, h, d, hiding) * dt;
         } else {
-            // 远离警戒圈时慢慢下降
             c.alertValue -= lv.alertSpeed * 0.5 * dt;
         }
     }
-    // chase状态下alertValue不变（追的时候不用警戒值）
+    // chase状态下警戒由 tickCatAbandon 管理
     // confused状态下alertValue由case内部处理下降
 
     c.lastState = c.state; // 记录上一帧状态用于检测状态变化
 
     // 卡住检测：猫1.5秒内移动距离<15px，强制重新找路
-    if(c.state==='patrol' || c.state==='chase' || c.state==='alert' || c.state==='stunned' || c.state==='confused' || c.state==='surprised' || c.state==='freeze' || c.state==='lazy'){
+    if(c.state==='patrol' || c.state==='chase' || c.state==='charging' || c.state==='returning' || c.state==='alert' || c.state==='stunned' || c.state==='confused' || c.state==='surprised' || c.state==='lazy'){
         // 注意：不包含 'sleeping' - 睡觉时跳过卡住检测
         const dx=c.x-c.stuckX, dy=c.y-c.stuckY;
         c.stuckTimer += dt;
@@ -711,20 +1021,12 @@ function updateCat(dt){
     case 'sleeping':
         c.face='sleeping';
         c.targetSpd = 0;
-        // 老鼠很近且在视野内：先吃惊2s
-        if(d < 60 && !hiding && isInCatVisionCone(c,h)){
-            c.state='surprised'; c.face='surprised'; c.surprisedTimer=2.0;
-            c.catImg='catSurprise';
-            if(c.firstChase){ G.sageHint={text:'猫醒了！快跑！',timer:2.0}; c.firstChase=false; }
+        c.catImg = 'catSleep';
+        if(c.alertValue >= 100){
+            wakeCatSurprised(c);
+        } else if(c.stateTimer <= 0 && G.currentLevel !== 1){
+            c.state='lazy'; c.stateTimer=rand(6,10);
         }
-        // 警戒值满了也发现
-        else if(c.alertValue >= 100){
-            c.state='surprised'; c.face='surprised'; c.surprisedTimer=2.0;
-            c.catImg='catSurprise';
-            if(c.firstChase){ G.sageHint={text:'猫醒了！快跑！',timer:2.0}; c.firstChase=false; }
-        }
-        // 否则按timer进入lazy
-        else if(c.stateTimer <= 0){c.state='lazy';c.stateTimer=rand(6,10);}
         break;
 
     case 'lazy':
@@ -734,25 +1036,16 @@ function updateCat(dt){
             c.wanderAngle = Math.random() * Math.PI * 2;
             c.targetVx = Math.cos(c.wanderAngle); c.targetVy = Math.sin(c.wanderAngle);
         }
-        // 老鼠很近且在视野内：直接追
-        if(d < 60 && !hiding && isInCatVisionCone(c,h)){c.state='chase';c.face='chase';c.chaseBuildup=0; c.chaseBuildupTime=Math.max(0.3, Math.min(2.5, d/200));}
-        // 警戒值满100：发现躲藏的老鼠
-        else if(c.alertValue >= 100){c.state='chase';c.face='chase';c.chaseBuildup=0; c.chaseBuildupTime=Math.max(0.3, Math.min(2.5, d/200));}
-        // 警戒值高：进入alert
-        else if(c.alertValue > 15){c.state='alert';c.face='alert';}
-        // timer到期进入patrol
-        else if(c.stateTimer <= 0){c.state='patrol';c.patrolPts=genPatrolPts();c.patrolIdx=0;}
+        if(c.alertValue >= 100){ wakeCatSurprised(c); }
+        else if(c.alertValue > 15){ c.state='alert'; c.face='alert'; }
+        else if(c.stateTimer <= 0){ c.state='patrol'; c.patrolPts=genPatrolPts(); c.patrolIdx=0; }
         break;
 
     case 'patrol':
         c.face='normal';
         if(!c.patrolPts.length) c.patrolPts=genPatrolPts();
-        // 警戒值满100：强制发现（即使躲藏）
-        if(c.alertValue >= 100){c.state='chase';c.face='chase';c.chaseBuildup=0; c.chaseBuildupTime=Math.max(0.3, Math.min(2.5, d/200)); break;}
-        // 老鼠很近且在视野内：直接追
-        if(d < 60 && !hiding && isInCatVisionCone(c,h)){c.state='chase';c.face='chase';c.chaseBuildup=0; c.chaseBuildupTime=Math.max(0.3, Math.min(2.5, d/200)); break;}
-        // 警戒值高：进入alert
-        if(c.alertValue > 15){c.state='alert';c.face='alert'; break;}
+        if(c.alertValue >= 100){ wakeCatSurprised(c); break; }
+        if(c.alertValue > 15){ c.state='alert'; c.face='alert'; break; }
         // 正常巡逻
         if(c.patrolRandomTimer > 0){
             // 随机偏移模式：朝食物方向+随机偏移走一段
@@ -779,73 +1072,95 @@ function updateCat(dt){
 
     case 'alert':
         c.face='alert';
-        // 警戒值满100：先吃惊
-        if(c.alertValue >= 100){
-            c.state='surprised'; c.face='surprised'; c.surprisedTimer=2.0;
-            c.catImg='catSurprise';
-            if(c.firstChase){ G.sageHint={text:'猫醒了！快跑！',timer:2.0}; c.firstChase=false; }
-            break;
-        }
-        // 老鼠很近且在视野内：先吃惊
-        if(d < 60 && !hiding && isInCatVisionCone(c,h)){
-            c.state='surprised'; c.face='surprised'; c.surprisedTimer=2.0;
-            c.catImg='catSurprise';
-            if(c.firstChase){ G.sageHint={text:'猫醒了！快跑！',timer:2.0}; c.firstChase=false; }
-            break;
-        }
-        // 警戒值达到阈值：先吃惊
-        if(c.alertValue > 22){
-            c.state='surprised'; c.face='surprised'; c.surprisedTimer=2.0;
-            c.catImg='catSurprise';
-            if(c.firstChase){ G.sageHint={text:'猫醒了！快跑！',timer:2.0}; c.firstChase=false; }
-            break;
-        }
-        // 警戒值低：回到patrol
-        if(c.alertValue <= 8){c.state='patrol';c.patrolPts=genPatrolPts();c.patrolIdx=0;c.face='normal'; break;}
-        // alert状态：朝老鼠方向移动但保持较慢速度
+        if(c.alertValue >= 100){ wakeCatSurprised(c); break; }
+        if(c.alertValue <= 8){ c.state='patrol'; c.patrolPts=genPatrolPts(); c.patrolIdx=0; c.face='normal'; break; }
         c.targetSpd = c.patrolSpeed * 1.0;
-        catMove(c,h.x,h.y,dt);
+        if(c.hasSeenHamster){
+            catMove(c,h.x,h.y,dt);
+        } else {
+            c.wanderAngle += (Math.random()-0.5)*0.5*dt;
+            c.targetVx=Math.cos(c.wanderAngle); c.targetVy=Math.sin(c.wanderAngle);
+        }
         break;
 
     case 'surprised':
         c.face='surprised';
-        c.targetSpd = 0; // 原地不动
+        c.targetSpd = 0;
         c.catImg='catSurprise';
         c.surprisedTimer -= dt;
         if(c.surprisedTimer <= 0){
-            c.state='freeze'; c.freezeTimer=1.0; c.face='surprised';
+            c.state='charging';
+            c.chargeTimer=0;
+            c.wakeCharge=true;
+            c.face='chase';
         }
         break;
 
-    case 'freeze':
-        c.face='surprised';
-        c.targetSpd = 0; // 原地呆1s
-        c.catImg='catSurprise';
-        c.freezeTimer -= dt;
-        if(c.freezeTimer <= 0){
-            c.state='chase'; c.face='chase'; c.chaseBuildup=0;
-            c.chaseBuildupTime=Math.max(0.3, Math.min(2.5, d/200));
+    case 'charging':
+        c.face='chase';
+        c.targetSpd=0;
+        c.curSpd=Math.max(0, c.curSpd - dt*3);
+        c.chargeTimer=(c.chargeTimer||0)+dt;
+        { const ct=getCatChaseTarget(c,h); catMove(c,ct.x,ct.y,dt); }
+        const chargeLimit = c.wakeCharge ? CAT_WAKE_CHARGE_TIME : CAT_CHARGE_TIME;
+        if(c.chargeTimer>=chargeLimit){
+            if(c.wakeCharge){
+                c.wakeCharge=false;
+                c.chargeTimer=0;
+                startCatChase(c,h);
+                break;
+            }
+            c.state='chase';
+            c.dashTimer=CAT_DASH_TIME;
+            c.chargeCooldown=4.5;
+            c.chargeTimer=0;
+            const ct=getCatChaseTarget(c,h);
+            const dx=ct.x-c.x, dy=ct.y-c.y, len=Math.hypot(dx,dy);
+            if(len>0.01){ c.vx=dx/len; c.vy=dy/len; c.targetVx=c.vx; c.targetVy=c.vy; }
+            c.targetSpd=c.chaseSpeed*1.45;
+            c.curSpd=c.chaseSpeed*1.25;
+        }
+        break;
+
+    case 'returning':
+        c.face='normal';
+        { const bed=getCatBedPos();
+        if(bed){
+            catMove(c,bed.x,bed.y,dt);
+            c.targetSpd=c.patrolSpeed;
+            if(dist(c,bed)<45){
+                c.state=G.currentLevel===1?'sleeping':'lazy';
+                c.stateTimer=G.currentLevel===1?15:8;
+                c.alertValue=0; c.hasSeenHamster=false;
+                c.targetSpd=0; c.curSpd=0;
+            }
+        } else { c.state='patrol'; c.patrolPts=genPatrolPts(); c.patrolIdx=0; }
         }
         break;
 
     case 'chase':
+        if(!c.hasSeenHamster && !G.foodStolen){ c.state='patrol'; c.patrolPts=genPatrolPts(); c.patrolIdx=0; break; }
+        if(G.foodStolen) c.committedChase=true;
+        if(tickCatAbandon(c,h,d,dt)) break;
         c.face='chase';
+        if(c.chargeCooldown>0) c.chargeCooldown-=dt;
+        const pastWarmup = c.chaseBuildup >= CAT_CHASE_SMOKE_TIME + CAT_CHASE_ACCEL_TIME;
+        if(c.dashTimer<=0 && pastWarmup && d>CAT_FAR_DIST && c.chargeCooldown<=0){
+            c.state='charging'; c.chargeTimer=0; break;
+        }
         c.chaseBuildup += dt;
-        // 动态加速：根据进入chase时的距离决定加速时间
-        // chaseBuildupTime范围0.3~2.5秒，距离越短加速越快
-        const bt = c.chaseBuildupTime || 1.0;
-        if(c.chaseBuildup < bt){
-            const t = c.chaseBuildup / bt;
-            c.targetSpd = c.patrolSpeed*0.4 + (c.chaseSpeed - c.patrolSpeed*0.4)*t;
+        if(c.dashTimer>0){
+            c.dashTimer-=dt;
+            c.targetSpd=c.chaseSpeed*(1.1+c.dashTimer/CAT_DASH_TIME*0.35);
+        } else if(c.chaseBuildup < CAT_CHASE_SMOKE_TIME){
+            c.targetSpd = 0;
+        } else if(c.chaseBuildup < CAT_CHASE_SMOKE_TIME + CAT_CHASE_ACCEL_TIME){
+            const t = (c.chaseBuildup - CAT_CHASE_SMOKE_TIME) / CAT_CHASE_ACCEL_TIME;
+            c.targetSpd = c.chaseSpeed * t;
         } else {
             c.targetSpd = c.chaseSpeed;
         }
-        catMove(c,h.x,h.y,dt);
-        // 追丢了（距离太远）-> confused，此时警戒值才开始下降
-        if(d > 450){
-            c.state='confused'; c.stateTimer=rand(2,4); c.face='confused';
-            c.chaseBuildup=0;
-        }
+        { const ct=getCatChaseTarget(c,h); catMove(c,ct.x,ct.y,dt); }
         break;
 
     case 'stunned':
@@ -857,15 +1172,17 @@ function updateCat(dt){
         }
         if(c.stunTimer > 0) c.stunTimer -= dt;
         if(c.stunTimer <= 0){
-            // 眩晕结束后直接恢复巡逻，不卡死
-            c.state='patrol'; c.patrolPts=genPatrolPts(); c.patrolIdx=0; c.face='normal';
-            c.alertValue=0; // 清零警戒值
-            // 确保猫有初始方向（指向第一个巡逻点）
-            if(c.patrolPts.length>0){
-                const pt=c.patrolPts[0];
-                const pdx=pt.x-c.x, pdy=pt.y-c.y;
-                const pLen=Math.hypot(pdx,pdy);
-                if(pLen>0.01){c.vx=pdx/pLen; c.vy=pdy/pLen; c.targetVx=pdx/pLen; c.targetVy=pdy/pLen;}
+            if(G.foodStolen && c.committedChase){
+                startCatChase(c, G.hamster);
+            } else {
+                c.state='patrol'; c.patrolPts=genPatrolPts(); c.patrolIdx=0; c.face='normal';
+                c.alertValue=0;
+                if(c.patrolPts.length>0){
+                    const pt=c.patrolPts[0];
+                    const pdx=pt.x-c.x, pdy=pt.y-c.y;
+                    const pLen=Math.hypot(pdx,pdy);
+                    if(pLen>0.01){c.vx=pdx/pLen; c.vy=pdy/pLen; c.targetVx=pdx/pLen; c.targetVy=pdy/pLen;}
+                }
             }
         }
         break;
@@ -887,19 +1204,7 @@ function updateCat(dt){
             }
         }
         break;
-
-    case 'surprised':
-        c.face='surprised';
-        c.targetSpd = 0;
-        if(c.stateTimer <= 0){c.state='patrol';c.patrolPts=genPatrolPts();c.patrolIdx=0;c.face='normal';}
-        break;
     }
-
-    // 刚进入chase且是第一次追逐：显示吃惊
-    if(c.state==='chase' && c.lastState!=='chase'){
-        if(c.firstChase){ c.surprisedTimer = 0.8; c.firstChase = false; }
-    }
-    if(c.surprisedTimer > 0) c.surprisedTimer -= dt;
 
     // 根据状态更新猫的图片
     updateCatImg(c, dt);
@@ -919,19 +1224,20 @@ function updateCat(dt){
     if(c.collCooldown <= 0){
         for(let f of G.furniture){
             if(f.interactive && c.state!=='sleeping' && circRectHit(c.x,c.y,c.r,f.x,f.y,f.w,f.h)){
-                // 【规则】只有全速追逐且距离较远(>80px)时碰撞才会眩晕
-                const isFullSpeed = c.curSpd >= c.chaseSpeed * 0.85;
+                const isDecor = !!f.decor;
                 const stun=getStunTime(f);
-                if(stun>0 && isFullSpeed && c.state==='chase' && d > 80){
+                // 追逐中高速撞障：前3次递减眩晕，之后只反弹（G.catHits 由 getStunTime 判定）
+                if(stun>0 && isCatPursuing(c) && isCatFastEnough(c)){
                     c.state='stunned'; c.stunTimer=stun;
                     SFX.play('stun');
                     c.alertValue=Math.max(0,c.alertValue-20);
-                    G.catHits++; f.hitCount=(f.hitCount||0)+1;
-                    if(f.hitCount>=3) f.gray=true;
+                    G.catHits++;
                     G.shakeTimer=0.3; G.shakeIntensity=5;
-                    // 撞2次后再撞，不再反向推出（原地眩晕）
-                    if(G.catHits < 3){
-                        const p=pushOut(c.x,c.y,c.r+20,f.x,f.y,f.w,f.h);
+                    if(isDecor) f.shakeTimer=0.45;
+                    const pushPad = isDecor ? 6 : 20;
+                    // 第3次眩晕后不再大幅推开（原地晕）
+                    if(G.catHits < CAT_MAX_STUN_HITS){
+                        const p=pushOut(c.x,c.y,c.r+pushPad,f.x,f.y,f.w,f.h);
                         const pdx=p.x-c.x, pdy=p.y-c.y;
                         c.x=p.x; c.y=p.y;
                         // 眩晕时方向设为远离家具
@@ -944,38 +1250,11 @@ function updateCat(dt){
                     c.curSpd *= 0.5;
                     c.collCooldown = 0.05;
                 } else {
-                    // 不眩晕：推出 + 减速，不反弹只转向
-                    const oldX=c.x, oldY=c.y;
-                    const p=pushOut(c.x,c.y,c.r+16,f.x,f.y,f.w,f.h);
-                    const pdx=p.x-oldX, pdy=p.y-oldY;
+                    const pushPad = f.decor ? 8 : 12;
+                    const p=pushOut(c.x,c.y,c.r+pushPad,f.x,f.y,f.w,f.h);
                     c.x=p.x; c.y=p.y;
-                    c.curSpd *= 0.3;
-                    c.collCooldown = c.state==='patrol' ? 0.4 : 0.25;
-                    // 巡逻时直接远离家具，不滑行（避免穿透）
-                    if(c.state==='patrol' && Math.hypot(pdx,pdy)>0.01){
-                        const nLen=Math.hypot(pdx,pdy);
-                        c.vx=pdx/nLen; c.vy=pdy/nLen;
-                        c.targetVx=c.vx; c.targetVy=c.vy;
-                    } else if(Math.hypot(pdx,pdy)>0.01){
-                        // 法向量（远离家具）
-                        const nLen=Math.hypot(pdx,pdy);
-                        const nx=pdx/nLen, ny=pdy/nLen;
-                        // 目标方向（朝老鼠）
-                        const tx=c.targetVx, ty=c.targetVy;
-                        // 去掉朝向家具的法向分量，保留切向分量（沿边走）
-                        const dot = tx*nx + ty*ny;
-                        let slideX = tx - dot*nx;
-                        let slideY = ty - dot*ny;
-                        const sLen=Math.hypot(slideX,slideY);
-                        if(sLen>0.3){
-                            c.vx=slideX/sLen; c.vy=slideY/sLen;
-                            c.targetVx=c.vx; c.targetVy=c.vy;
-                        } else {
-                            // 切向分量太小，直接沿法向远离
-                            c.vx=nx; c.vy=ny;
-                            c.targetVx=nx; c.targetVy=ny;
-                        }
-                    }
+                    if(f.decor) f.shakeTimer=0.35;
+                    catDeflectFromFurniture(c,f);
                 }
                 break;
             }
@@ -995,43 +1274,58 @@ function updateCat(dt){
             }
         }
     }
-    // 墙壁碰撞 - 所有状态都做墙壁滑行（sleeping除外）
+    // 墙壁碰撞
     if(c.collCooldown<=0 && c.state!=='sleeping'){
         for(let w of G.walls){
             if(circRectHit(c.x,c.y,c.r+2,w.x,w.y,w.w,w.h)){
-                const p=pushOut(c.x,c.y,c.r+3,w.x,w.y,w.w,w.h);
+                const p=pushOut(c.x,c.y,c.r+8,w.x,w.y,w.w,w.h);
                 const pdx=p.x-c.x, pdy=p.y-c.y;
                 const pLen=Math.hypot(pdx,pdy);
                 c.x=p.x; c.y=p.y;
-                if(pLen>0.01){
-                    const nx=pdx/pLen, ny=pdy/pLen;
-                    // 沿墙滑行：保留切向分量
-                    const dot = c.vx*nx + c.vy*ny;
-                    let tx = c.vx - dot*nx;
-                    let ty = c.vy - dot*ny;
-                    const tLen=Math.hypot(tx,ty);
-                    if(tLen>0.01){
-                        c.vx = tx/tLen; c.vy = ty/tLen;
-                    } else {
-                        // 切向分量为0时，给垂直于法向量的方向
-                        c.vx = -ny; c.vy = nx;
-                    }
-                    // 同步更新 targetVx/targetVy，避免下一帧又朝向墙壁
-                    c.targetVx = c.vx; c.targetVy = c.vy;
+                const wallStun = getStunTime(null);
+                if(wallStun>0 && isCatPursuing(c) && isCatFastEnough(c)){
+                    c.state='stunned'; c.stunTimer=wallStun;
+                    SFX.play('stun');
+                    c.alertValue=Math.max(0,c.alertValue-15);
+                    G.catHits++;
+                    G.shakeTimer=0.3; G.shakeIntensity=5;
+                    c.curSpd *= 0.4;
+                    c.collCooldown = 0.05;
+                } else if(pLen>0.01){
+                    catDeflectFromWall(c, pdx/pLen, pdy/pLen);
+                } else {
+                    c.collCooldown=0.5; c.curSpd*=0.3;
                 }
-                // 全速时擦墙减速很少，非全速减速多些
-                const isFullSpeed = c.curSpd >= c.chaseSpeed * 0.85;
-                c.curSpd *= isFullSpeed ? 0.92 : 0.7;
-                c.collCooldown = isFullSpeed ? 0.05 : 0.1;
                 break;
             }
         }
     }
+    // 窄道：猫太胖进不去
+    if(c.state!=='sleeping' && G.narrowGaps){
+        for(let gap of G.narrowGaps){
+            if(gap.type!=='mouse') continue;
+            if(circRectHit(c.x,c.y,c.r,gap.x,gap.y,gap.w,gap.h)){
+                const p=pushOut(c.x,c.y,c.r+6,gap.x,gap.y,gap.w,gap.h);
+                c.x=p.x; c.y=p.y;
+                const pdx=c.x-(gap.x+gap.w), pdy=c.y-(gap.y+gap.h/2);
+                if(Math.hypot(pdx,pdy)<0.01){ c.vx=1; c.vy=0; } else { c.vx=pdx/Math.hypot(pdx,pdy); c.vy=pdy/Math.hypot(pdx,pdy); }
+                c.targetVx=c.vx; c.targetVy=c.vy;
+                c.curSpd=Math.min(c.curSpd, c.patrolSpeed*0.5);
+                c.collCooldown=0.4;
+            }
+        }
+    }
+    clampCatInBounds(c);
     c.alertValue = clamp(c.alertValue, 0, 100);
 }
 
 // catMove: 只设置目标方向，不直接改变当前速度方向
 function catMove(cat, tx, ty, dt){
+    if(cat.avoidUntil && G.time < cat.avoidUntil){
+        cat.targetVx=cat.avoidVx; cat.targetVy=cat.avoidVy;
+        cat.dir=Math.abs(cat.targetVx)>Math.abs(cat.targetVy)?(cat.targetVx>0?3:2):(cat.targetVy>0?0:1);
+        return;
+    }
     const dx=tx-cat.x, dy=ty-cat.y, d=Math.hypot(dx,dy);
     if(d>0.5){
         cat.targetVx=dx/d; cat.targetVy=dy/d;
@@ -1066,7 +1360,20 @@ function applyCatPhysics(cat, dt){
         if(cat.curSpd<0) cat.curSpd=0;
     }
 
-    // --- 2. 特殊状态：confused/stunned时不转向，只沿当前方向滑行，避免和墙壁碰撞对抗卡死 ---
+    // --- 2. 蓄力/窜出/眩晕：特殊移动规则 ---
+    if(cat.state === 'charging'){
+        const cLen=Math.hypot(cat.vx,cat.vy);
+        if(cLen>0.01){ cat.vx/=cLen; cat.vy/=cLen; }
+        const turnSpeed=cat.baseTurnRate*2.5*dt;
+        const curAngle=Math.atan2(cat.vy,cat.vx);
+        const tgtAngle=Math.atan2(cat.targetVy,cat.targetVx);
+        let diff=tgtAngle-curAngle;
+        while(diff>Math.PI) diff-=Math.PI*2;
+        while(diff<-Math.PI) diff+=Math.PI*2;
+        const na=curAngle+clamp(diff,-turnSpeed,turnSpeed);
+        cat.vx=Math.cos(na); cat.vy=Math.sin(na);
+        return;
+    }
     if(cat.state === 'confused' || cat.state === 'stunned'){
         // 保持当前方向不变，不参与下面的转向/避障
         const cLen = Math.hypot(cat.vx, cat.vy);
@@ -1086,9 +1393,9 @@ function applyCatPhysics(cat, dt){
     let avoidVx = 0, avoidVy = 0;
     let needsAvoid = false;
 
-    // 只在有速度时做避障
+    // 只在有速度时做避障（窜出时不避障，刹不住车）
     const isCloseToTarget = distToHamster < catchDist + 20;
-    if(cat.curSpd > 0.1){
+    if(cat.curSpd > 0.1 && cat.dashTimer <= 0){
         // 近距离时（快要抓到老鼠），大幅缩短预判距离，避免因避障无法靠近
         // 预判距离：速度*反应时间，近距离时大幅缩短
         const reactTime = isCloseToTarget ? 0.05 : 0.10;
@@ -1193,21 +1500,29 @@ function applyCatPhysics(cat, dt){
     while(diff < -Math.PI) diff += Math.PI*2;
     const absDiff = Math.abs(diff);
 
-    // 转弯时速度下降：转弯角度越大，减速越多
-    const turnSlowdown = 1.0 - absDiff * 0.8; // 180度转弯减速到20%
-    const turnSlowdownClamped = Math.max(0.25, turnSlowdown);
-    cat.curSpd *= (1.0 + (turnSlowdownClamped - 1.0) * 3.0 * dt); // 快速响应
+    const spdRatio = cat.chaseSpeed > 0 ? cat.curSpd / cat.chaseSpeed : 0;
+    let turnMult = 1.0;
+    if(cat.dashTimer > 0){
+        turnMult = lerp(0.04, 0.2, 1 - spdRatio);
+    } else if(spdRatio > 0.75){
+        turnMult = lerp(0.25, 1.0, (1 - spdRatio) / 0.25);
+    }
 
-    // 转向速率：近距离时转向更快，避免绕圈
-    const turnSpeed = cat.baseTurnRate * (isCloseToTarget ? 2.0 : 1.0) * (1.0 + absDiff * 0.5);
+    // 转弯时速度下降：高速时转弯更难
+    const turnSlowdown = 1.0 - absDiff * (cat.dashTimer > 0 ? 0.95 : 0.8);
+    const turnSlowdownClamped = Math.max(cat.dashTimer > 0 ? 0.15 : 0.25, turnSlowdown);
+    cat.curSpd *= (1.0 + (turnSlowdownClamped - 1.0) * 3.0 * dt);
+
+    const turnSpeed = cat.baseTurnRate * turnMult * (isCloseToTarget ? 2.0 : 1.0) * (1.0 + absDiff * 0.5);
     const maxTurn = turnSpeed * dt;
     const actualTurn = (absDiff < maxTurn) ? diff : Math.sign(diff) * maxTurn;
     const newAngle = curAngle + actualTurn;
     cat.vx = Math.cos(newAngle);
     cat.vy = Math.sin(newAngle);
 
-    // 转向后拉回curSpd上限（避免累积）
-    cat.curSpd = Math.min(cat.curSpd, cat.chaseSpeed);
+    // 转向后拉回curSpd上限
+    const spdCap = cat.dashTimer > 0 ? cat.chaseSpeed * 1.5 : cat.chaseSpeed;
+    cat.curSpd = Math.min(cat.curSpd, spdCap);
 
     // --- 4. 应用位移 ---
     const move = cat.curSpd * 60 * dt;
@@ -1216,7 +1531,8 @@ function applyCatPhysics(cat, dt){
 }
 
 function getStunTime(f,t){
-    if(G.catHits>=3) return 0;
+    // 本关累计眩晕达 CAT_MAX_STUN_HITS 次后返回 0（只反弹不晕）
+    if(G.catHits >= CAT_MAX_STUN_HITS) return 0;
     const base=t?t.stun:1.5;
     return [base, base*0.5, base*0.15][Math.min(G.catHits,2)];
 }
@@ -1239,7 +1555,7 @@ function updateAlternating(c, dt, mainKey, altKey, minMain, maxMain, minAlt, max
     return c.altPhase === 'main' ? (c.altVariant === 0 ? mainKey[0] : mainKey[1]) : altKey[c.altVariant];
 }
 
-// 根据猫状态更新显示的图片key
+// 猫状态 → 图片映射（见 RULES.md 第7节）
 function updateCatImg(c, dt){
     c.altTimer -= dt;
     switch(c.state){
@@ -1247,34 +1563,35 @@ function updateCatImg(c, dt){
         c.catImg='catSleep'; break;
     case 'stunned':
         c.catImg='catStun'; break;
+    case 'surprised':
+        c.catImg='catSurprise'; break;
+    case 'charging':
+        c.catImg='catAngry'; break;
     case 'chase':
-        // 第一次追逐时先显示吃惊
-        if(c.surprisedTimer > 0){
-            c.catImg='catSurprise';
-        } else if(G.catHits >= 2){
-            // 第二次撞到后：暴怒1/2切换 → 自然停几秒再切换
+        if(G.catHits >= 1){
             c.catImg = updateAlternating(c, dt, ['catRage1','catRage2'], ['catRage1','catRage2'], 2, 4, 0.8, 1.5);
-        } else if(G.catHits >= 1){
-            // 第一次撞到后：生气
-            c.catImg='catAngry';
         } else {
-            // 没撞过：正常追逐（暴怒）→ 自然停几秒再切换
-            c.catImg = updateAlternating(c, dt, ['catRage1','catRage2'], ['catRage1','catRage2'], 2, 4, 0.8, 1.5);
+            c.catImg='catAngry';
         }
         break;
     case 'alert':
-        // 警戒1/2切换 → 自然停几秒再切换
         c.catImg = updateAlternating(c, dt, ['catAlert1','catAlert2'], ['catAlert1','catAlert2'], 2.5, 4.5, 0.8, 1.2);
         break;
-    case 'confused':
-        c.catImg='catNormal'; break;
-    default:
-        // patrol/lazy等：如果上次撞过显示生气，否则normal
+    case 'returning':
+        c.catImg='catAlert1'; break;
+    case 'lazy':
+    case 'patrol':
         if(G.catHits>=1 && c.catImg!=='catHappy'){
             c.catImg='catAngry';
-        } else if(c.catImg!=='catHappy'){
-            c.catImg='catNormal';
+        } else {
+            c.catImg='catAlert1';
         }
+        break;
+    case 'confused':
+        if(c.catImg!=='catHappy') c.catImg='catAlert1';
+        break;
+    default:
+        if(c.catImg!=='catHappy') c.catImg='catAlert1';
         break;
     }
 }
@@ -1306,6 +1623,8 @@ function catCatchHamster(){
             }
         }
         if(blocked) break;
+        // 被猫撞飞不能滑进鼠洞
+        if(dist({x:nx,y:ny}, G.ratHole) < h.r + G.ratHole.r) break;
         h.x=nx; h.y=ny;
         remaining-=s;
     }
@@ -1353,8 +1672,12 @@ function setupInput(){
 // 键盘状态
 const keys = { up:false, down:false, left:false, right:false };
 function onKeyDown(e){
-    if(G.scene!=='game' || G.state!=='action') return;
-    if(G.sageHint && G.sageHint.timer > 0) return; // 提示显示时禁止操作
+    if(e.key==='p' || e.key==='P' || e.key==='Escape'){
+        if(G.scene==='game' && (G.state==='prepare' || G.state==='action')) togglePause();
+        return;
+    }
+    if(G.paused || G.scene!=='game' || G.state!=='action') return;
+    if(isGameInputBlocked()) return;
     switch(e.key){
         case 'w': case 'W': case 'ArrowUp': keys.up=true; break;
         case 's': case 'S': case 'ArrowDown': keys.down=true; break;
@@ -1375,7 +1698,7 @@ function getTouches(e){ return e.changedTouches; }
 
 function onTouchStart(e){
     e.preventDefault();
-    if(G.sageHint && G.sageHint.timer > 0) return; // 提示显示时禁止操作
+    if(isGameInputBlocked()) return;
     for(const t of e.changedTouches){
         const p=canvasCoord(t.clientX,t.clientY);
         processTap(p.x, p.y, t.identifier);
@@ -1383,7 +1706,7 @@ function onTouchStart(e){
 }
 function onTouchMove(e){
     e.preventDefault();
-    if(G.sageHint && G.sageHint.timer > 0) return; // 提示显示时禁止操作
+    if(isGameInputBlocked()) return;
     for(const t of e.changedTouches){
         if(t.identifier===G.touchJoy.id){
             const p=canvasCoord(t.clientX,t.clientY);
@@ -1410,7 +1733,7 @@ function mouseCoord(e){
 }
 function onMouseDown(e){
     mouseDown=true;
-    if(G.sageHint && G.sageHint.timer > 0) return; // 提示显示时禁止操作
+    if(isGameInputBlocked()) return;
     const p=mouseCoord(e);
     processTap(p.x, p.y, -1);
 }
@@ -1427,8 +1750,26 @@ function onMouseUp(){
     G.touchJoy.id=-1;G.touchJoy.active=false;G.touchJoy.dx=0;G.touchJoy.dy=0;
 }
 
+function togglePause(){
+    if(G.scene!=='game' || (G.state!=='prepare' && G.state!=='action')) return;
+    G.paused = !G.paused;
+    if(G.paused){
+        G.touchJoy.active=false; G.touchJoy.id=-1; G.touchJoy.dx=0; G.touchJoy.dy=0;
+        keys.up=keys.down=keys.left=keys.right=false;
+    }
+}
+
 function processTap(x,y,touchId){
     if(!SFX.ctx) SFX.init();
+    if(G.paused){
+        if(btnHit(G.W/2-90, G.H/2-30, 180, 48, x, y)){ G.paused=false; return; }
+        if(btnHit(G.W/2-90, G.H/2+30, 180, 48, x, y)){ G.paused=false; startLevel(G.currentLevel); return; }
+        if(btnHit(G.W/2-90, G.H/2+90, 180, 48, x, y)){ G.paused=false; G.scene='levelSelect'; return; }
+        return;
+    }
+    if(G.scene==='game' && (G.state==='prepare' || G.state==='action')){
+        if(btnHit(G.W-52, 12, 40, 36, x, y)){ togglePause(); return; }
+    }
     if(G.scene==='logo'){G.scene='menu';return;}
     if(G.scene==='menu'){
         if(btnHit(G.W/2-85,400,170,55,x,y)) G.scene='levelSelect';
@@ -1521,17 +1862,16 @@ function startLevel(lid){
     G.openingTimer=0; G.lives=3; G.foodCollected=0;
     G.foodDropped=[]; G.catHits=0; G.shakeTimer=0; G.redFlash=0;
     G.alertValue=0; G.paused=false; G.selectedTrap=null; G.countdown=-1; G.selectedBananaTrap=false;
-    G.narrowGaps=[]; G.sageHint=null; G.powerups=[]; G.bananaTraps=[]; G.bananaCount=(lid===3)?2:0;
+    G.narrowGaps=[]; G.catPaths=[]; G.sageHint=null; G.powerups=[]; G.bananaTraps=[]; G.bananaCount=(lid===3)?2:0;
+    G.foodStolen=false;
     const lv=LEVELS[lid-1];
     G.energy=lv.energy; G.maxEnergy=lv.energy;
     generateMap(lid);
     G.hamster=createHamster(); G.cat=createCat();
-    // 猫窝位置跟随猫的出生点（覆盖之前的固定位置）
-    for(let f of G.furniture){
-        if(f.type==='catbed'){
-            f.x = G.cat.x - f.w/2;
-            f.y = G.cat.y - f.h/2;
-        }
+    // 猫出生在随机猫窝上，仅移动该猫窝到猫脚下（其余猫窝保持原位作装饰）
+    if(G.spawnCatBed && G.cat){
+        G.spawnCatBed.x=G.cat.x-G.spawnCatBed.w/2;
+        G.spawnCatBed.y=G.cat.y-G.spawnCatBed.h/2;
     }
     // 第一关：猫强制睡觉更久，玩家先熟悉操作
     if(lid===1 && G.cat){
@@ -1539,6 +1879,7 @@ function startLevel(lid){
         G.cat.stateTimer=15; // 15秒睡眠，给玩家足够时间
         G.cat.alertValue=0;
         G.cat.face='sleeping';
+        G.cat.catImg='catSleep';
     }
     // 第一关：食物放到猫附近，但避开障碍物/家具
     if(lid===1 && G.cat){
@@ -1579,6 +1920,10 @@ function startAction(){
     }
 }
 function endGame(won){
+    G.sageHint=null;
+    G.paused=false;
+    G.touchJoy.active=false; G.touchJoy.id=-1; G.touchJoy.dx=0; G.touchJoy.dy=0;
+    keys.up=keys.down=keys.left=keys.right=false;
     SFX.play(won ? 'win' : 'lose');
     G.state='result'; G.scene='result';
     if(won){
@@ -1587,10 +1932,15 @@ function endGame(won){
         if(G.foodCollected>=G.foodTarget)
             G.maxUnlocked=Math.max(G.maxUnlocked,G.currentLevel+1);
         G.bestStars[G.currentLevel]=Math.max(G.bestStars[G.currentLevel]||0,G.stars);
+        saveProgress();
     } else {
         G.stars=0;
-        // 玩家失败，猫开心
         if(G.cat) G.cat.catImg='catHappy';
+        if(G.hamster){
+            G.hamster.failAnim='main';
+            G.hamster.failVariant=0;
+            G.hamster.failTimer=2 + Math.random()*2;
+        }
     }
 }
 
@@ -1599,6 +1949,10 @@ function endGame(won){
 // ============================================================
 function update(dt){
     G.animFrame++; G.time+=dt;
+    if(G.scene==='result' && G.stars===0) updateFailAnim(dt);
+    for(let f of G.furniture){
+        if(f.shakeTimer>0) f.shakeTimer-=dt;
+    }
     switch(G.state){
     case 'opening': updateOpening(dt); break;
     case 'prepare': updatePrepare(dt); break;
@@ -1630,33 +1984,53 @@ function updateOpening(dt){
             G.camera.targetX=G.cat.x; G.camera.targetY=G.cat.y; G.camera.targetZoom=1.0;
         }
         if(isL1) G.openingText='那只胖猫在睡觉💤...莫去惹它哈！';
-    } else if(G.openingTimer<9.0){
+    } else if(G.openingTimer<9.5){
+        if(isL1 && G.narrowGaps && G.narrowGaps[0]){
+            const gap=G.narrowGaps[0];
+            G.camera.targetX=gap.x+gap.w/2; G.camera.targetY=gap.y+gap.h/2; G.camera.targetZoom=1.3;
+            G.openingText='左边那条窄道只有你钻得过去，胖猫进不来！';
+        } else {
+            G.camera.targetX=G.ratHole.x; G.camera.targetY=G.ratHole.y; G.camera.targetZoom=0.8;
+            G.openingText='';
+        }
+    } else if(G.openingTimer<12.0){
+        if(isL1){
+            const pw=G.powerups && G.powerups.find(p=>p.type==='toycar');
+            if(pw){
+                G.camera.targetX=pw.x; G.camera.targetY=pw.y; G.camera.targetZoom=1.2;
+            } else {
+                G.camera.targetX=G.mapW/2; G.camera.targetY=G.mapH*0.45; G.camera.targetZoom=0.85;
+            }
+            G.openingText='路上有小车，捡到能自动冲一段，溜猫贼快！';
+        } else {
+            G.camera.targetX=G.ratHole.x; G.camera.targetY=G.ratHole.y; G.camera.targetZoom=0.8;
+            G.openingText='';
+        }
+    } else if(G.openingTimer<13.5){
         G.camera.targetX=G.ratHole.x; G.camera.targetY=G.ratHole.y; G.camera.targetZoom=0.8;
         if(isL1) G.openingText='接下来就看你这个瓜娃子的了！';
-    } else if(G.openingTimer<10.0){
-        // 镜头移到老鼠身上
+    } else if(G.openingTimer<14.5){
+        G.openingText='';
+        G.countdown = 3;
         if(G.hamster){
             G.camera.targetX=G.hamster.x; G.camera.targetY=G.hamster.y; G.camera.targetZoom=1.2;
         }
-        G.openingText='';
-        G.countdown = 3;
-    } else if(G.openingTimer<11.0){
+    } else if(G.openingTimer<15.5){
         G.countdown = 2;
         if(G.hamster){
             G.camera.targetX=G.hamster.x; G.camera.targetY=G.hamster.y; G.camera.targetZoom=1.2;
         }
-    } else if(G.openingTimer<12.0){
+    } else if(G.openingTimer<16.5){
         G.countdown = 1;
         if(G.hamster){
             G.camera.targetX=G.hamster.x; G.camera.targetY=G.hamster.y; G.camera.targetZoom=1.2;
         }
-    } else if(G.openingTimer<12.5){
-        G.countdown = 0; // GO!
+    } else if(G.openingTimer<17.0){
+        G.countdown = 0;
         if(G.hamster){
             G.camera.targetX=G.hamster.x; G.camera.targetY=G.hamster.y; G.camera.targetZoom=1.2;
         }
     } else {
-        // 自动开始行动
         startAction();
     }
 }
@@ -1784,16 +2158,19 @@ function updateAction(dt){
             if(h.stealProgress>=1){
                 td.collected=true; td.stealing=false;
                 G.foodCollected++; SFX.play('collect'); h.stealing=false; h.stealTarget=null;
+                G.foodStolen=true;
                 G.floatTexts.push({x:h.x,y:h.y-20,text:`+${G.foodCollected}`,timer:1.2,maxTimer:1.2,color:'#FFD700'});
                 h.stealProgress=0; h.face='happy';
                 setTimeout(()=>{if(G.hamster) G.hamster.face='normal';},1000);
-                // 偷到食物后猫立马惊醒（所有关卡）
-                if(G.cat && G.cat.state==='sleeping'){
-                    G.cat.state='surprised';
-                    G.cat.face='surprised';
-                    G.cat.surprisedTimer=2.0;
-                    G.cat.catImg='catSurprise';
-                    G.sageHint={text:'猫醒了！快跑！',timer:2.0};
+                if(G.cat){
+                    G.cat.alertValue=100;
+                    G.cat.committedChase=true;
+                    G.cat.hasSeenHamster=true;
+                    if(G.cat.state==='sleeping'||G.cat.state==='lazy'||G.cat.state==='patrol'){
+                        wakeCatSurprised(G.cat);
+                    } else if(G.cat.state!=='chase'&&G.cat.state!=='charging'&&G.cat.state!=='surprised'){
+                        startCatChase(G.cat,h);
+                    }
                 }
             }
         } else {
@@ -1828,11 +2205,11 @@ function updateAction(dt){
 
     G.alertValue=c.alertValue;
 
-    // 鼠洞 - 只要活着到达鼠洞就赢（只有在行动阶段才检测）
-    if(G.state==='action' && dist(h,G.ratHole)<h.r+G.ratHole.r){
+    // 鼠洞 - 玩家主动进洞才算赢（被猫撞飞进洞不算）
+    if(G.state==='action' && h.invincible <= 0 && dist(h,G.ratHole)<h.r+G.ratHole.r){
         if(G.foodCollected===0){
             // 还没拿食物就想跑？仙人提示
-            G.sageHint={text:'等等！还没拿到食物呢，再去找找~',timer:1.5};
+            G.sageHint={text:'等等！还没拿到食物呢，再去找找~',timer:2.5};
         } else {
             G.returnEarly=G.foodCollected<G.foodTarget;
             endGame(true);
@@ -1847,6 +2224,16 @@ function updateAction(dt){
 
     // 新手引导
     if(G.tutorial.active){G.tutorial.timer+=dt;updateTutorial();}
+}
+
+function updateFailAnim(dt){
+    const h=G.hamster;
+    if(!h) return;
+    h.failTimer -= dt;
+    if(h.failTimer <= 0){
+        h.failVariant = h.failVariant === 0 ? 1 : 0;
+        h.failTimer = 2 + Math.random()*2;
+    }
 }
 
 function updateTutorial(){
@@ -1914,6 +2301,10 @@ function updateTutorial(){
 // ============================================================
 function render(){
     ctx.clearRect(0,0,G.W,G.H);
+    if(!G.canPlay){
+        drawLoadingScreen();
+        return;
+    }
     let sx=0,sy=0;
     if(G.shakeTimer>0){sx=(Math.random()-0.5)*G.shakeIntensity;sy=(Math.random()-0.5)*G.shakeIntensity;}
 
@@ -1924,6 +2315,24 @@ function render(){
     case 'game': drawGame(sx,sy); break;
     case 'result': drawResult(); break;
     }
+    if(G.paused) drawPauseOverlay();
+}
+
+function drawLoadingScreen(){
+    ctx.fillStyle='#1a1a2e'; ctx.fillRect(0,0,G.W,G.H);
+    ctx.fillStyle='#FFF'; ctx.font='bold 22px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('仓鼠大作战', G.W/2, G.H/2-60);
+    const pct = criticalTotal ? Math.floor(criticalLoaded / criticalTotal * 100) : 0;
+    ctx.font='16px sans-serif';
+    ctx.fillText('加载核心素材 '+pct+'%', G.W/2, G.H/2);
+    ctx.font='12px sans-serif';
+    ctx.fillStyle='rgba(255,255,255,0.5)';
+    ctx.fillText('('+imagesLoaded+'/'+imagesTotal+' 张，家具/食物后台加载)', G.W/2, G.H/2+22);
+    ctx.fillStyle='#FFF';
+    const bw=200, bh=8, bx=G.W/2-bw/2, by=G.H/2+30;
+    ctx.fillStyle='rgba(255,255,255,0.15)'; rRect(bx,by,bw,bh,4); ctx.fill();
+    ctx.fillStyle=C.gold; rRect(bx,by,bw*pct/100,bh,4); ctx.fill();
 }
 
 // ---- Logo ----
@@ -2108,6 +2517,7 @@ function drawPrepareUI(){
         ctx.fillStyle='rgba(255,215,0,0.8)'; ctx.font='12px sans-serif'; ctx.textAlign='center';
         ctx.fillText('点击地图放置陷阱',G.W/2,G.H-100);
     }
+    drawPauseBtn();
 }
 
 // ---- Action UI ----
@@ -2146,20 +2556,26 @@ function drawActionUI(){
     if(G.sageHint && G.sageHint.timer > 0){
         const alpha = Math.min(1, G.sageHint.timer);
         ctx.globalAlpha = alpha;
-        // 仙人图标 + 提示文字（放在对话框上方）
+        const tw = G.W - 90, pad = 14;
+        const tx = 45, ty = G.H - 190;
+        const font = 'bold 14px sans-serif';
+        const lines = wrapTextLines(G.sageHint.text, tw - pad * 2 - 40, font);
+        const lineH = 20;
+        const th = Math.max(44, lines.length * lineH + pad * 2);
         ctx.fillStyle='rgba(255,255,255,0.92)';
-        const tw = 300, th = 44;
-        const tx = G.W/2 - tw/2, ty = G.H - 190; // 对话框上方
-        rRect(tx,ty,tw,th,12); ctx.fill();
-        ctx.strokeStyle=C.gold; ctx.lineWidth=2; rRect(tx,ty,tw,th,12); ctx.stroke();
-        if(IMAGES.sage && IMAGES.sage.complete){
-            ctx.drawImage(IMAGES.sage, tx+6, ty+6, 32, 32);
+        rRect(tx, ty, tw, th, 12); ctx.fill();
+        ctx.strokeStyle=C.gold; ctx.lineWidth=2; rRect(tx, ty, tw, th, 12); ctx.stroke();
+        if(IMAGES.sage && IMAGES.sage.complete && !IMAGES.sage._failed){
+            drawSageImage(tx+22, ty+th/2+2, 36);
         } else {
-            ctx.font='24px serif'; ctx.textAlign='left';
-            ctx.fillText('🧙',tx+6,ty+26);
+            ctx.font='24px serif'; ctx.textAlign='left'; ctx.textBaseline='middle';
+            ctx.fillText('🧙', tx+6, ty+th/2);
         }
-        ctx.fillStyle='#D35400'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center';
-        ctx.fillText(G.sageHint.text, tx+tw/2+12, ty+th/2+2);
+        ctx.fillStyle='#D35400'; ctx.font=font; ctx.textAlign='center'; ctx.textBaseline='middle';
+        const startY = ty + th/2 - (lines.length - 1) * lineH / 2;
+        for(let i=0; i<lines.length; i++){
+            ctx.fillText(lines[i], tx + tw/2 + 12, startY + i * lineH);
+        }
         ctx.globalAlpha = 1;
     }
     // 警觉条
@@ -2175,6 +2591,7 @@ function drawActionUI(){
 
     drawCatIndicator();
     drawJoystick();
+    drawPauseBtn();
 
     // 偷取进度
     if(G.hamster && G.hamster.stealing){
@@ -2247,22 +2664,20 @@ function drawOpeningUI(){
     ctx.fillText(`第${G.currentLevel}关 - ${LEVELS[G.currentLevel-1].name}`,G.W/2,G.H/2);
     // 第1关开场引导文字 + 仙人（原始大小在对话框上方）
     if(G.openingText){
-        // 仙人图片在上方，放大一倍
-        const sageH = 160, sageW = 160;
-        const sageX = G.W/2 - 100, sageY = G.H - 130; // 往左下100, 往上移50
-        if(IMAGES.sage && IMAGES.sage.complete){
-            ctx.drawImage(IMAGES.sage, sageX-sageW/2, sageY-sageH, sageW, sageH);
+        const sageDrawY = G.H - 130;
+        const sageDrawX = G.W/2 - 100;
+        if(IMAGES.sage && IMAGES.sage.complete && !IMAGES.sage._failed){
+            drawSageImage(sageDrawX, sageDrawY, 100);
         } else {
             ctx.font='56px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-            ctx.fillText('🧙',sageX,sageY-sageH/2);
+            ctx.fillText('🧙',sageDrawX,sageDrawY-50);
         }
-        // 对话框在仙人下方
-        ctx.fillStyle='rgba(255,255,255,0.92)';
-        const bw=G.W-90, bh=50, bx=45, by=G.H-145;
-        rRect(bx,by,bw,bh,15); ctx.fill();
-        ctx.strokeStyle=C.darkBrown; ctx.lineWidth=2; rRect(bx,by,bw,bh,15); ctx.stroke();
-        ctx.fillStyle='#333'; ctx.font='15px sans-serif'; ctx.textAlign='center';
-        ctx.fillText(G.openingText,bx+bw/2,by+bh/2);
+        const bw=G.W-90, bx=45, pad=12, font='15px sans-serif';
+        const lines = wrapTextLines(G.openingText, bw - pad * 2, font);
+        const lineH = 21;
+        const bh = Math.max(50, lines.length * lineH + pad * 2);
+        const by = G.H - 95 - bh;
+        drawTextBox(G.openingText, bx, by, bw, 50, font, '#333', pad);
     }
     // 321倒计时
     if(G.countdown>=0){
@@ -2278,24 +2693,17 @@ function drawOpeningUI(){
 
 function drawTutorial(){
     const t=G.tutorial;
-    const bw=G.W-90, bh=45, bx=45, by=G.H-140;
-    // 仙人图片在对话框上方，放大一倍
-    const sageH=140, sageW=140;
-    const sageX=G.W/2-100, sageY=by+95; // 往左下100
-    if(IMAGES.sage && IMAGES.sage.complete){
-        ctx.drawImage(IMAGES.sage, sageX-sageW/2, sageY-sageH, sageW, sageH);
+    const bw=G.W-90, bx=45, by=G.H-140;
+    const sageDrawX=G.W/2-100, sageDrawY=by+95;
+    if(IMAGES.sage && IMAGES.sage.complete && !IMAGES.sage._failed){
+        drawSageImage(sageDrawX, sageDrawY, 90);
     } else {
         ctx.font='48px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText('🧙',sageX,sageY-sageH/2);
+        ctx.fillText('🧙',sageDrawX,sageDrawY-45);
     }
-    // 对话框
-    ctx.fillStyle='rgba(255,255,255,0.92)';
-    rRect(bx,by,bw,bh,15); ctx.fill();
-    ctx.strokeStyle=C.darkBrown; ctx.lineWidth=2; rRect(bx,by,bw,bh,15); ctx.stroke();
-    ctx.fillStyle='#333'; ctx.font='14px sans-serif'; ctx.textAlign='center';
-    ctx.fillText(t.text,bx+bw/2,by+bh/2);
-    ctx.fillStyle='#999'; ctx.font='11px sans-serif'; ctx.textAlign='right';
-    ctx.fillText(`${t.step+1}/6`,bx+bw-10,by+bh-5);
+    const bh = drawTextBox(t.text, bx, by, bw, 45, '14px sans-serif', '#333', 10);
+    ctx.fillStyle='#999'; ctx.font='11px sans-serif'; ctx.textAlign='right'; ctx.textBaseline='alphabetic';
+    ctx.fillText(`${t.step+1}/6`, bx+bw-10, by+bh-5);
 }
 
 // ---- Result ----
@@ -2333,6 +2741,27 @@ function drawResult(){
 // ============================================================
 // 绘图工具
 // ============================================================
+function drawPauseOverlay(){
+    ctx.fillStyle='rgba(0,0,0,0.65)';
+    ctx.fillRect(0,0,G.W,G.H);
+    ctx.fillStyle='#FFF'; ctx.font='bold 28px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('暂停', G.W/2, G.H/2-80);
+    drawBtn(G.W/2-90, G.H/2-30, 180, 48, '继续游戏', C.uiGreen, '#FFF');
+    drawBtn(G.W/2-90, G.H/2+30, 180, 48, '重新开始', '#FFA500', '#FFF');
+    drawBtn(G.W/2-90, G.H/2+90, 180, 48, '返回选关', '#888', '#FFF');
+    ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='12px sans-serif';
+    ctx.fillText('P / Esc 继续', G.W/2, G.H/2+150);
+}
+
+function drawPauseBtn(){
+    ctx.fillStyle='rgba(0,0,0,0.45)';
+    rRect(G.W-52, 12, 40, 36, 8); ctx.fill();
+    ctx.fillStyle='#FFF'; ctx.font='18px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('⏸', G.W-32, 30);
+}
+
 function drawBtn(x,y,w,h,text,bg,fg){
     ctx.fillStyle=bg; rRect(x,y,w,h,h/2); ctx.fill();
     ctx.fillStyle=fg; ctx.font='bold 17px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
@@ -2358,47 +2787,48 @@ function drawRatHole(){
     ctx.fillText('鼠洞',r.x,r.y);
 }
 function drawFurniture(f){
-    ctx.save();
-    if(f.gray) ctx.globalAlpha=0.35;
-    // 优先使用图片素材
     const img = IMAGES[f.type];
-    if(img && img.complete && img.naturalWidth > 0){
-        ctx.drawImage(img, f.x, f.y, f.w, f.h);
+    const cx=f.x+f.w/2, cy=f.y+f.h/2;
+    ctx.save();
+    ctx.translate(cx, cy);
+    if(f.shakeTimer>0){
+        const wobble=Math.sin(G.time*38)*f.shakeAngle*(f.shakeTimer/0.45);
+        ctx.rotate(wobble);
+    }
+    if(f.flipX) ctx.scale(-1, 1);
+    if(img && img.complete && img.naturalWidth > 0 && !img._failed){
+        ctx.drawImage(img, -f.w/2, -f.h/2, f.w, f.h);
     } else {
-        // 纯色方块备用
         const colors = {
-            fridge:{f:'#E8E8E8',s:'#CCC'}, stove:{f:'#555',s:'#333'},
-            counter:{f:'#D2B48C',s:'#8B7355'}, cabinet:{f:'#DEB887',s:'#A0825A'},
-            cabinet2:{f:'#DEB887',s:'#A0825A'}, catbed:{f:'#FFB6C1',s:'#FF69B4'},
-            table:{f:C.darkBrown,s:'#6B4914'}, chair:{f:C.darkBrown,s:'#6B4914'},
-            sofa:{f:C.darkBrown,s:'#6B4914'}, coffeeTable:{f:C.darkBrown,s:'#6B4914'},
-            plant:{f:'#228B22',s:'#006400'}, box:{f:C.darkBrown,s:'#6B4914'},
-            cart:{f:'#888',s:'#666'},
+            top_stove:{f:'#555',s:'#333'}, top_fridge_white:{f:'#EEE',s:'#CCC'}, top_fridge_blue:{f:'#88BBDD',s:'#6699BB'},
+            sofa_lg:{f:C.darkBrown,s:'#6B4914'}, decor_trash:{f:'#888',s:'#666'}, catbed_grey:{f:'#CCC',s:'#999'},
+            catbed_pink:{f:'#FFB6C1',s:'#FF69B4'}, catbed_round:{f:'#DDD',s:'#AAA'},
         };
         const cl = colors[f.type] || {f:'#A0825A',s:'#7A6040'};
-        ctx.fillStyle=cl.f; rRect(f.x,f.y,f.w,f.h,5); ctx.fill();
-        ctx.strokeStyle=cl.s; ctx.lineWidth=2; rRect(f.x,f.y,f.w,f.h,5); ctx.stroke();
+        ctx.fillStyle=cl.f; rRect(-f.w/2,-f.h/2,f.w,f.h,5); ctx.fill();
+        ctx.strokeStyle=cl.s; ctx.lineWidth=2; rRect(-f.w/2,-f.h/2,f.w,f.h,5); ctx.stroke();
     }
     ctx.restore();
-    if(f.interactive && !f.gray){
+    if(f.interactive && !f.decor){
         const ga=0.4+0.3*Math.sin(G.time*3);
         ctx.strokeStyle=`rgba(255,215,0,${ga})`; ctx.lineWidth=3;
         rRect(f.x-2,f.y-2,f.w+4,f.h+4,7); ctx.stroke();
     }
 }
 function drawFood(food,dropped){
-    if(!dropped && !food.stealing){
-        ctx.globalAlpha=0.7+0.3*Math.sin(G.time*4);
-    }
     // 优先用图片素材
     const img = food.type.img ? IMAGES[food.type.img] : null;
-    if(img && img.complete && img.naturalWidth > 0){
+    if(img && img.complete && img.naturalWidth > 0 && !img._failed){
         ctx.drawImage(img, food.x-16, food.y-16, 32, 32);
     } else {
         ctx.font='24px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
         ctx.fillText(food.type.icon,food.x,food.y);
     }
-    ctx.globalAlpha=1;
+    // 静态高亮光边（不闪动）
+    if(!dropped && !food.collected){
+        ctx.strokeStyle='rgba(255,215,0,0.85)'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.arc(food.x,food.y,18,0,Math.PI*2); ctx.stroke();
+    }
     if(food.stealing && G.hamster && G.hamster.stealTarget===food){
         ctx.strokeStyle=C.gold; ctx.lineWidth=4;
         ctx.beginPath(); ctx.arc(food.x,food.y,28,-Math.PI/2,-Math.PI/2+Math.PI*2*G.hamster.stealProgress);
@@ -2508,28 +2938,19 @@ function drawFloatTexts(dt){
 }
 function drawHamsterSprite(x,y,r,face,dir){
     ctx.save(); ctx.translate(x,y);
-    // 失败画面：用鼠失败1/2交替
-    if(G.scene==='result' && G.stars===0 && IMAGES.mouseFail1 && IMAGES.mouseFail1.complete){
+    // 失败画面：mouse_fail1 ↔ mouse_fail2 自然交替
+    if(G.scene==='result' && G.stars===0){
         const h=G.hamster;
-        if(h){
-            h.failTimer -= 0.016; // 约60fps
-            if(h.failTimer <= 0){
-                if(h.failAnim === 'main'){
-                    h.failAnim = 'switched';
-                    h.failVariant = h.failVariant === 0 ? 1 : 0;
-                    h.failTimer = 2; // 固定2秒
-                } else {
-                    h.failAnim = 'main';
-                    h.failTimer = 2; // 固定2秒
-                }
-            }
+        const failImg = (h && h.failVariant===1) ? IMAGES.mouseFail2 : IMAGES.mouseFail1;
+        if(failImg && failImg.complete && !failImg._failed){
+            const targetH = r * 2.8;
+            const scale = targetH / failImg.naturalHeight;
+            const targetW = failImg.naturalWidth * scale;
+            ctx.drawImage(failImg, -targetW/2, -targetH/2, targetW, targetH);
+            ctx.restore();
+            return;
         }
-        const failImg = (h && h.failVariant===0) ? IMAGES.mouseFail1 : IMAGES.mouseFail2;
-        const targetH = r * 2.8;
-        const scale = targetH / failImg.naturalHeight;
-        const targetW = failImg.naturalWidth * scale;
-        ctx.drawImage(failImg, -targetW/2, -targetH/2, targetW, targetH);
-    } else if(IMAGES.mouse && IMAGES.mouse.complete){
+    } else if(IMAGES.mouse && IMAGES.mouse.complete && !IMAGES.mouse._failed){
         const img=IMAGES.mouse;
         const targetH = r * 2.8;
         const scale = targetH / img.naturalHeight;
@@ -2572,32 +2993,28 @@ function drawHamsterSprite(x,y,r,face,dir){
 }
 function drawCat(){
     const c=G.cat;
-    // 猫视野锥（扇形区域）：100px距离，90度
-    if(c.state!=='sleeping' && c.state!=='surprised' && c.state!=='freeze'){
-        // 平滑视野角度：使用target方向避免抖动
-        const targetAngle = Math.atan2(c.targetVy || c.vy, c.targetVx || c.vx);
-        if(!c._smoothAngle) c._smoothAngle = targetAngle;
+    // 警戒圈（睡觉时也显示，但不显示视野锥）
+    ctx.strokeStyle = c.alertValue > 50 ? 'rgba(255,68,68,0.4)' : 'rgba(255,165,0,0.3)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6,4]);
+    ctx.beginPath(); ctx.arc(c.x,c.y,CAT_VISION_RANGE,0,Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+    // 视野锥（睡觉/吃惊/愣住时不显示）
+    if(c.state!=='sleeping' && c.state!=='surprised' && c.state!=='charging'){
+        const targetAngle = getCatFacingAngle(c);
+        if(c._smoothAngle == null) c._smoothAngle = targetAngle;
         const diff = normalizeAngle(targetAngle - c._smoothAngle);
-        c._smoothAngle = normalizeAngle(c._smoothAngle + diff * 0.15); // 平滑过渡
-        const catAngle = c._smoothAngle;
-        const coneDist = 100;
-        const coneAngle = Math.PI*90/180; // 90度
-        // 扇形填充
+        c._smoothAngle = normalizeAngle(c._smoothAngle + diff * 0.15);
+        const halfAngle = CAT_VISION_ANGLE / 2;
         ctx.save();
         ctx.globalAlpha = c.state==='chase' ? 0.25 : 0.20;
         ctx.fillStyle = c.state==='chase' ? '#FF2222' : '#FF6600';
         ctx.beginPath();
         ctx.moveTo(c.x, c.y);
-        ctx.arc(c.x, c.y, coneDist, catAngle-coneAngle, catAngle+coneAngle);
+        ctx.arc(c.x, c.y, CAT_VISION_RANGE, c._smoothAngle-halfAngle, c._smoothAngle+halfAngle);
         ctx.closePath();
         ctx.fill();
         ctx.globalAlpha = 1;
-        // 警戒圈（圆形，和视野锥一致）
-        ctx.strokeStyle = c.alertValue > 50 ? 'rgba(255,68,68,0.4)' : 'rgba(255,165,0,0.3)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6,4]);
-        ctx.beginPath(); ctx.arc(c.x,c.y,100,0,Math.PI*2); ctx.stroke();
-        ctx.setLineDash([]);
         ctx.restore();
     }
     ctx.save(); ctx.translate(c.x,c.y);
@@ -2641,28 +3058,48 @@ function drawCat(){
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.strokeText('?', 0, fy); ctx.fillText('?', 0, fy);
     }
-    // 跑步烟雾效果（速度越快烟越大，但不会比身体大）
-    if(c.state==='chase' && c.curSpd > c.patrolSpeed * 0.5){
-        const speedRatio = Math.min(1, (c.curSpd - c.patrolSpeed * 0.5) / (c.chaseSpeed - c.patrolSpeed * 0.5));
-        const smokeSize = 4 + speedRatio * 10; // 4~14px，不超过身体
-        const smokeAlpha = 0.2 + speedRatio * 0.3;
-        // 烟雾在猫身后
-        const backX = -c.vx * (c.r + 5);
-        const backY = -c.vy * (c.r + 5);
-        for(let i=0; i<3; i++){
-            const offset = i * 6;
-            const sx = backX - c.vx * offset + (Math.random()-0.5)*6;
-            const sy = backY - c.vy * offset + (Math.random()-0.5)*6;
-            ctx.fillStyle = `rgba(200,200,200,${smokeAlpha * (1-i*0.25)})`;
+    // 烟雾：蓄力大量冒烟 / 追逐冒烟
+    if(c.state==='charging'){
+        let fx=c.targetVx||c.vx, fy=c.targetVy||c.vy;
+        if(Math.hypot(fx,fy)<0.01){ fx=1; fy=0; }
+        for(let i=0;i<8;i++){
+            const offset=i*8;
+            const sx=-fx*(c.r+8+offset)+(Math.random()-0.5)*14;
+            const sy=-fy*(c.r+8+offset)+(Math.random()-0.5)*14;
+            const alpha=0.35+0.15*(8-i)/8;
+            ctx.fillStyle=`rgba(180,180,180,${alpha})`;
             ctx.beginPath();
-            ctx.arc(sx, sy, smokeSize * (1-i*0.2), 0, Math.PI*2);
+            ctx.arc(sx,sy,12-i*0.8,0,Math.PI*2);
             ctx.fill();
+        }
+    } else if(c.state==='chase'){
+        const inSmokePhase = c.chaseBuildup < CAT_CHASE_SMOKE_TIME;
+        const speedRatio = c.chaseSpeed > 0 ? Math.min(1, c.curSpd / c.chaseSpeed) : 0;
+        const showSmoke = inSmokePhase || speedRatio > 0.05;
+        if(showSmoke){
+            let fx=c.vx, fy=c.vy;
+            if(Math.hypot(fx,fy)<0.01){ fx=c.targetVx; fy=c.targetVy; }
+            if(Math.hypot(fx,fy)<0.01){ fx=1; fy=0; }
+            const smokeIntensity = inSmokePhase ? 0.7 : speedRatio;
+            const smokeSize = inSmokePhase ? 10 : 4 + speedRatio * 10;
+            const smokeAlpha = 0.25 + smokeIntensity * 0.35;
+            const backX = -fx * (c.r + 5);
+            const backY = -fy * (c.r + 5);
+            for(let i=0; i<(inSmokePhase ? 4 : 3); i++){
+                const offset = i * 6;
+                const sx = backX - fx * offset + (Math.random()-0.5)*8;
+                const sy = backY - fy * offset + (Math.random()-0.5)*8;
+                ctx.fillStyle = `rgba(200,200,200,${smokeAlpha * (1-i*0.2)})`;
+                ctx.beginPath();
+                ctx.arc(sx, sy, smokeSize * (1-i*0.15), 0, Math.PI*2);
+                ctx.fill();
+            }
         }
     }
     // 猫图片
-    const imgKey = c.catImg || 'catNormal';
+    const imgKey = c.catImg || 'catAlert1';
     const img = IMAGES[imgKey];
-    if(img && img.complete){
+    if(img && img.complete && !img._failed){
         const targetH = c.r * 3.0;
         const scale = targetH / img.naturalHeight;
         const targetW = img.naturalWidth * scale;
