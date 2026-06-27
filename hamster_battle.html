@@ -83,6 +83,15 @@ const G = {
     spawnCatBed: null,
     equippedSkinId: 'skin_01',
     unlockedSkins: ['skin_01', 'skin_02', 'skin_03'],
+    skinShopScroll: 0,
+    skinShopSelected: 'skin_01',
+    skinToast: null,
+    newSkinNotice: null,
+    loginStreak: 0,
+    lastLoginDate: '',
+    totalFoodEver: 0,
+    adWatchesToday: 0,
+    adWatchDate: '',
 };
 
 // ---- 皮肤（IAA 无内购，见 assets/skins/skin_catalog.json） ----
@@ -99,6 +108,12 @@ function loadSave(){
         if(data.bestStars && typeof data.bestStars === 'object') G.bestStars = data.bestStars;
         if(typeof data.equippedSkinId === 'string') G.equippedSkinId = data.equippedSkinId;
         if(Array.isArray(data.unlockedSkins) && data.unlockedSkins.length) G.unlockedSkins = data.unlockedSkins;
+        if(typeof data.loginStreak === 'number') G.loginStreak = data.loginStreak;
+        if(typeof data.lastLoginDate === 'string') G.lastLoginDate = data.lastLoginDate;
+        if(typeof data.totalFoodEver === 'number') G.totalFoodEver = data.totalFoodEver;
+        if(typeof data.adWatchesToday === 'number') G.adWatchesToday = data.adWatchesToday;
+        if(typeof data.adWatchDate === 'string') G.adWatchDate = data.adWatchDate;
+        G.skinShopSelected = G.equippedSkinId || 'skin_01';
     }catch(e){}
 }
 function saveProgress(){
@@ -108,6 +123,11 @@ function saveProgress(){
             bestStars: G.bestStars,
             equippedSkinId: G.equippedSkinId,
             unlockedSkins: G.unlockedSkins,
+            loginStreak: G.loginStreak,
+            lastLoginDate: G.lastLoginDate,
+            totalFoodEver: G.totalFoodEver,
+            adWatchesToday: G.adWatchesToday,
+            adWatchDate: G.adWatchDate,
         }));
     }catch(e){}
 }
@@ -227,13 +247,212 @@ function isSkinUnlocked(id){
     return G.unlockedSkins && G.unlockedSkins.indexOf(id) >= 0;
 }
 function unlockSkin(id, reason){
-    if(!id || isSkinUnlocked(id)) return;
+    if(!id || isSkinUnlocked(id)) return false;
     G.unlockedSkins = G.unlockedSkins || [];
     G.unlockedSkins.push(id);
     saveProgress();
+    const sk = getSkinDef(id);
+    G.newSkinNotice = { id, name: sk ? sk.name : id, timer: 3.5 };
+    return true;
+}
+function getSkinList(){
+    return (SKIN_CATALOG && SKIN_CATALOG.skins) ? SKIN_CATALOG.skins : [];
+}
+function getSkinDef(id){
+    return getSkinList().find(s => s.id === id) || null;
+}
+function todayStr(){
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function checkDailyLogin(){
+    const t = todayStr();
+    if(G.lastLoginDate === t) return;
+    if(!G.lastLoginDate) G.loginStreak = 1;
+    else {
+        const a = new Date(G.lastLoginDate), b = new Date(t);
+        const diff = Math.round((b - a) / 86400000);
+        G.loginStreak = (diff === 1) ? (G.loginStreak || 0) + 1 : 1;
+    }
+    G.lastLoginDate = t;
+    if(G.loginStreak >= 7) unlockSkin('skin_04');
+    if(G.loginStreak >= 14) unlockSkin('skin_05');
+    saveProgress();
+}
+function checkTaskSkinUnlocks(){
+    const f = G.totalFoodEver || 0;
+    if(f >= 5) unlockSkin('skin_11');
+    if(f >= 15) unlockSkin('skin_12');
+    if(f >= 30) unlockSkin('skin_13');
+    if(G.maxUnlocked >= 3) unlockSkin('skin_14');
+    if(G.maxUnlocked >= 5) unlockSkin('skin_15');
+}
+function checkLevelSkinUnlocks(lv){
+    const map = { 2:'skin_16', 3:'skin_17', 4:'skin_18', 5:'skin_19', 6:'skin_20' };
+    if(map[lv]) unlockSkin(map[lv]);
+}
+function getSkinUnlockHint(skin){
+    if(!skin) return '';
+    switch(skin.unlock){
+        case 'default': return '开局可选';
+        case 'login_day_7': return '连续登录7天（当前'+G.loginStreak+'天）';
+        case 'login_day_14': return '连续登录14天（当前'+G.loginStreak+'天）';
+        case 'ad_reward': return '看广告领取（IAA）';
+        case 'task': return '完成任务解锁';
+        case 'level_clear': return '通关指定关卡';
+        case 'event': return '活动赠送';
+        default: return '达成条件后解锁';
+    }
+}
+function canClaimSkin(skin){
+    if(!skin || isSkinUnlocked(skin.id)) return false;
+    if(skin.unlock === 'default') return true;
+    if(skin.unlock === 'login_day_7') return G.loginStreak >= 7;
+    if(skin.unlock === 'login_day_14') return G.loginStreak >= 14;
+    if(skin.unlock === 'ad_reward') return true;
+    if(skin.unlock === 'task') return false;
+    if(skin.unlock === 'level_clear') return false;
+    if(skin.unlock === 'event') return false;
+    return false;
+}
+function tryClaimOrEquipSkin(id){
+    const skin = getSkinDef(id);
+    if(!skin) return;
+    if(isSkinUnlocked(id)){
+        G.equippedSkinId = id;
+        G.skinShopSelected = id;
+        saveProgress();
+        G.skinToast = { text: '已穿戴 '+skin.name, timer: 1.5 };
+        return;
+    }
+    if(skin.unlock === 'ad_reward'){
+        const t = todayStr();
+        if(G.adWatchDate !== t){ G.adWatchDate = t; G.adWatchesToday = 0; }
+        G.adWatchesToday++;
+        unlockSkin(id, 'ad');
+        G.equippedSkinId = id;
+        G.skinShopSelected = id;
+        G.skinToast = { text: '观看完成，已解锁 '+skin.name, timer: 2 };
+        saveProgress();
+        return;
+    }
+    if(canClaimSkin(skin)){
+        unlockSkin(id, skin.unlock);
+        G.equippedSkinId = id;
+        G.skinShopSelected = id;
+        G.skinToast = { text: '已领取 '+skin.name, timer: 2 };
+        saveProgress();
+        return;
+    }
+    G.skinToast = { text: getSkinUnlockHint(skin), timer: 2.2 };
+}
+function drawSkinShop(){
+    const grad=ctx.createLinearGradient(0,0,0,G.H);
+    grad.addColorStop(0,'#FFE4B5'); grad.addColorStop(1,'#F0E4D4');
+    ctx.fillStyle=grad; ctx.fillRect(0,0,G.W,G.H);
+    drawBtn(20,20,70,40,'返回',C.uiBrown,'#FFF');
+    ctx.fillStyle=C.darkBrown; ctx.font='bold 26px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('仓鼠换装',G.W/2,42);
+    const sel = getSkinDef(G.skinShopSelected) || getSkinDef(G.equippedSkinId);
+    if(sel){
+        const prevEq = G.equippedSkinId;
+        G.equippedSkinId = G.skinShopSelected;
+        drawHamsterSprite(G.W/2, 130, 42, 'happy', 0);
+        G.equippedSkinId = prevEq;
+        ctx.font='bold 18px sans-serif'; ctx.fillStyle='#333';
+        ctx.fillText(sel.name, G.W/2, 200);
+        ctx.font='13px sans-serif'; ctx.fillStyle='#666';
+        ctx.fillText(getSkinUnlockHint(sel), G.W/2, 222);
+    }
+    const list = getSkinList();
+    const cols=5, cell=58, gap=8, sx=(G.W-(cols*cell+(cols-1)*gap))/2, sy=248;
+    const visRows=3, maxScroll=Math.max(0, Math.ceil(list.length/cols)-visRows);
+    G.skinShopScroll = clamp(G.skinShopScroll, 0, maxScroll);
+    const startRow = G.skinShopScroll;
+    for(let i=0;i<list.length;i++){
+        const row=Math.floor(i/cols), col=i%cols;
+        if(row < startRow || row >= startRow+visRows) continue;
+        const skin=list[i];
+        const x=sx+col*(cell+gap), y=sy+(row-startRow)*(cell+gap);
+        const on = skin.id===G.skinShopSelected;
+        const unlocked = isSkinUnlocked(skin.id);
+        const equipped = skin.id===G.equippedSkinId;
+        ctx.fillStyle = on ? '#FFD700' : '#FFF';
+        rRect(x,y,cell,cell,8); ctx.fill();
+        ctx.strokeStyle = equipped ? '#E67E22' : (on ? '#C9A000' : '#CCC');
+        ctx.lineWidth = equipped ? 3 : 2;
+        rRect(x,y,cell,cell,8); ctx.stroke();
+        const img = IMAGES[skin.id];
+        if(img && img.complete && !img._failed){
+            const sc = (cell-10)/Math.max(img.naturalWidth,img.naturalHeight);
+            const tw=img.naturalWidth*sc, th=img.naturalHeight*sc;
+            ctx.drawImage(img, x+(cell-tw)/2, y+(cell-th)/2, tw, th);
+        }
+        if(!unlocked){
+            ctx.fillStyle='rgba(0,0,0,0.45)'; rRect(x,y,cell,cell,8); ctx.fill();
+            ctx.fillStyle='#FFF'; ctx.font='16px sans-serif';
+            ctx.fillText('🔒', x+cell/2, y+cell/2);
+        }
+    }
+    if(maxScroll>0){
+        drawBtn(24, sy+visRows*(cell+gap)+8, 44, 36, '▲', '#AAA', '#FFF');
+        drawBtn(G.W-68, sy+visRows*(cell+gap)+8, 44, 36, '▼', '#AAA', '#FFF');
+    }
+    const sel2 = getSkinDef(G.skinShopSelected);
+    if(sel2){
+        if(isSkinUnlocked(sel2.id)){
+            drawBtn(G.W/2-80, G.H-100, 160, 48, '穿 戴', C.uiGreen, '#FFF');
+        } else if(sel2.unlock === 'ad_reward'){
+            drawBtn(G.W/2-100, G.H-100, 200, 48, '看广告解锁', '#6C5CE7', '#FFF');
+        } else if(canClaimSkin(sel2)){
+            drawBtn(G.W/2-80, G.H-100, 160, 48, '领 取', C.uiGreen, '#FFF');
+        } else {
+            drawBtn(G.W/2-110, G.H-100, 220, 48, '未解锁', '#BBB', '#FFF');
+        }
+    }
+    if(G.skinToast && G.skinToast.timer>0){
+        ctx.fillStyle='rgba(0,0,0,0.65)'; rRect(30,G.H-160,G.W-60,36,8); ctx.fill();
+        ctx.fillStyle='#FFF'; ctx.font='14px sans-serif';
+        ctx.fillText(G.skinToast.text, G.W/2, G.H-142);
+    }
+    if(G.newSkinNotice && G.newSkinNotice.timer>0){
+        ctx.fillStyle='rgba(255,215,0,0.92)'; rRect(40, G.H/2-50, G.W-80, 100, 12); ctx.fill();
+        ctx.fillStyle='#333'; ctx.font='bold 18px sans-serif';
+        ctx.fillText('获得新皮肤！', G.W/2, G.H/2-18);
+        ctx.font='15px sans-serif';
+        ctx.fillText(G.newSkinNotice.name, G.W/2, G.H/2+12);
+    }
+}
+function processSkinShopTap(x,y){
+    if(btnHit(20,20,70,40,x,y)){ G.scene='menu'; return; }
+    const list = getSkinList();
+    const cols=5, cell=58, gap=8, sx=(G.W-(cols*cell+(cols-1)*gap))/2, sy=248;
+    const visRows=3, maxScroll=Math.max(0, Math.ceil(list.length/cols)-visRows);
+    const startRow = G.skinShopScroll;
+    if(maxScroll>0){
+        if(btnHit(24, sy+visRows*(cell+gap)+8, 44, 36, x, y)){ G.skinShopScroll=Math.max(0,G.skinShopScroll-1); return; }
+        if(btnHit(G.W-68, sy+visRows*(cell+gap)+8, 44, 36, x, y)){ G.skinShopScroll=Math.min(maxScroll,G.skinShopScroll+1); return; }
+    }
+    for(let i=0;i<list.length;i++){
+        const row=Math.floor(i/cols), col=i%cols;
+        if(row < startRow || row >= startRow+visRows) continue;
+        const x0=sx+col*(cell+gap), y0=sy+(row-startRow)*(cell+gap);
+        if(btnHit(x0,y0,cell,cell,x,y)){
+            G.skinShopSelected = list[i].id;
+            return;
+        }
+    }
+    const sel = getSkinDef(G.skinShopSelected);
+    if(!sel) return;
+    if(btnHit(G.W/2-110, G.H-100, 220, 48, x, y)){
+        tryClaimOrEquipSkin(sel.id);
+    }
 }
 loadImages();
 loadSave();
+checkDailyLogin();
+checkTaskSkinUnlocks();
 
 // ---- 难度参数（后期可修改） ----
 const DIFFICULTY = {
@@ -1823,6 +2042,11 @@ function processTap(x,y,touchId){
     if(G.scene==='logo'){G.scene='menu';return;}
     if(G.scene==='menu'){
         if(btnHit(G.W/2-85,400,170,55,x,y)) G.scene='levelSelect';
+        if(btnHit(G.W/2-85,470,170,55,x,y)){ G.scene='skinShop'; G.skinShopSelected=G.equippedSkinId; return; }
+        return;
+    }
+    if(G.scene==='skinShop'){
+        processSkinShopTap(x,y);
         return;
     }
     if(G.scene==='levelSelect'){
@@ -1982,6 +2206,8 @@ function endGame(won){
         if(G.foodCollected>=G.foodTarget)
             G.maxUnlocked=Math.max(G.maxUnlocked,G.currentLevel+1);
         G.bestStars[G.currentLevel]=Math.max(G.bestStars[G.currentLevel]||0,G.stars);
+        checkLevelSkinUnlocks(G.currentLevel);
+        checkTaskSkinUnlocks();
         saveProgress();
     } else {
         G.stars=0;
@@ -1999,6 +2225,8 @@ function endGame(won){
 // ============================================================
 function update(dt){
     G.animFrame++; G.time+=dt;
+    if(G.skinToast && G.skinToast.timer>0) G.skinToast.timer-=dt;
+    if(G.newSkinNotice && G.newSkinNotice.timer>0) G.newSkinNotice.timer-=dt;
     if(G.scene==='result' && G.stars===0) updateFailAnim(dt);
     for(let f of G.furniture){
         if(f.shakeTimer>0) f.shakeTimer-=dt;
@@ -2207,7 +2435,7 @@ function updateAction(dt){
             h.stealProgress+=dt*1.2;
             if(h.stealProgress>=1){
                 td.collected=true; td.stealing=false;
-                G.foodCollected++; SFX.play('collect'); h.stealing=false; h.stealTarget=null;
+                G.foodCollected++; G.totalFoodEver++; checkTaskSkinUnlocks(); SFX.play('collect'); h.stealing=false; h.stealTarget=null;
                 G.foodStolen=true;
                 G.floatTexts.push({x:h.x,y:h.y-20,text:`+${G.foodCollected}`,timer:1.2,maxTimer:1.2,color:'#FFD700'});
                 h.stealProgress=0; h.face='happy';
@@ -2233,7 +2461,7 @@ function updateAction(dt){
     // 捡掉落食物
     for(let i=G.foodDropped.length-1;i>=0;i--){
         if(dist(h,G.foodDropped[i])<h.r+16){
-            G.foodCollected++;
+            G.foodCollected++; G.totalFoodEver++; checkTaskSkinUnlocks();
             SFX.play('collect');
             G.floatTexts.push({x:h.x,y:h.y-20,text:`+${G.foodCollected}`,timer:1.2,maxTimer:1.2,color:'#FFD700'});
             G.foodDropped.splice(i,1);
@@ -2361,6 +2589,7 @@ function render(){
     switch(G.scene){
     case 'logo': drawLogo(); break;
     case 'menu': drawMenu(); break;
+    case 'skinShop': drawSkinShop(); break;
     case 'levelSelect': drawLevelSelect(); break;
     case 'game': drawGame(sx,sy); break;
     case 'result': drawResult(); break;
@@ -2419,6 +2648,7 @@ function drawMenu(){
     drawHamsterSprite(G.W/2,240,50,'happy',0);
 
     drawBtn(G.W/2-85,400,170,55,'开始游戏',C.uiGreen,'#FFF');
+    drawBtn(G.W/2-85,470,170,55,'换 装',C.uiBrown,'#FFF');
     ctx.fillStyle='#999'; ctx.font='14px sans-serif';
     ctx.fillText('V1.0',G.W/2,G.H-30);
 }

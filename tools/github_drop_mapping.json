@@ -1,0 +1,264 @@
+{
+  "groups": [
+    {
+      "folder": "上面靠墙",
+      "group": "top",
+      "items": [
+        {
+          "from": "assets/incoming/github_drop/上面靠墙/抠图.png",
+          "to": "top_fridge_blue.png",
+          "size": "72x96"
+        },
+        {
+          "from": "assets/incoming/github_drop/上面靠墙/t80jF0gljnHjTDGUaRz4F.png",
+          "to": "top_fridge_white.png",
+          "size": "78x100"
+        },
+        {
+          "from": "assets/incoming/github_drop/上面靠墙/-i6wxiRo-UdPvjVg1nlc-.png",
+          "to": "top_stove.png",
+          "size": "220x72"
+        }
+      ]
+    },
+    {
+      "folder": "靠墙",
+      "group": "wall_left",
+      "items": [
+        {
+          "from": "assets/incoming/github_drop/靠墙/NZ_yZaRgktWWQVVMWm7mt.png",
+          "to": "wall_cabinet_tan.png",
+          "size": "54x54"
+        },
+        {
+          "from": "assets/incoming/github_drop/靠墙/Yff8sGOHmZQqXrQCMUnCd.png",
+          "to": "wall_chair_brown.png",
+          "size": "72x78"
+        },
+        {
+          "from": "assets/incoming/github_drop/靠墙/baHyivAb5AEt6fWEjzizu.png",
+          "to": "wall_chair_grey.png",
+          "size": "72x78"
+        },
+        {
+          "from": "assets/incoming/github_drop/靠墙/i97aJSdpYdI86_wA3DlEv.png",
+          "to": "wall_appliance_sm.png",
+          "size": "52x72"
+        },
+        {
+          "from": "assets/incoming/github_drop/靠墙/uyw4aIUEF0eSgC8sLhler.png",
+          "to": "wall_fridge_tall.png",
+          "size": "62x108"
+        }
+      ]
+    },
+    {
+      "folder": "随意",
+      "group": "free",
+      "items": [
+        {
+          "from": "assets/incoming/github_drop/随意/5lCwzfLV5E5Ij6EXWeMjt.png",
+          "to": "table_round_dark.png",
+          "size": "88x88"
+        },
+        {
+          "from": "assets/incoming/github_drop/随意/7eHWcvXCgyIjnpcfRtFs2.png",
+          "to": "table_round_light.png",
+          "size": "82x82"
+        },
+        {
+          "from": "assets/incoming/github_drop/随意/9ODS2dKoQfjZf__NE9GJO.png",
+          "to": "table_round_wood.png",
+          "size": "80x80"
+        },
+        {
+          "from": "assets/incoming/github_drop/随意/CI4i_2AakfmQ5GM2dgfxQ.png",
+          "to": "cushion_square.png",
+          "size": "52x52"
+        },
+        {
+          "from": "assets/incoming/github_drop/随意/DT4zY-x-x7FhIOFdt_l4s.png",
+          "to": "chest_heart.png",
+          "size": "56x48"
+        },
+        {
+          "from": "assets/incoming/github_drop/随意/FncsNnzGrNozxWKY3DNpm.png",
+          "to": "sofa_side.png",
+          "size": "95x80"
+        },
+        {
+          "from": "assets/incoming/github_drop/随意/KaO4_kCbKfRfavsNmmguf.png",
+          "to": "sofa_sm.png",
+          "size": "88x72"
+        },
+        {
+          "from": "assets/incoming/github_drop/随意/LBHsbHQLuC_tw9OY007tA.png",
+          "to": "sofa_corner.png",
+          "size": "140x110"
+        },
+        {
+          "from": "assets/incoming/github_drop/随意/TiAaITC-5_HoHxQOIimHO.png",
+          "to": "sofa_md.png",
+          "size": "120x62"
+        },
+        {
+          "from": "assets/incoming/github_drop/随意/ZyeKgNPOn47w-RZpCVG6A.png",
+          "to": "sofa_grey.png",
+          "size": "130x64"
+        },
+        {
+          "from": "assets/incoming/github_drop/随意/_5hnrh5Gv95kCg8mALima.png",
+          "to": "sofa_lg.png",
+          "size": "150x68"
+        },
+        {
+          "from": "assets/incoming/github_drop/随意/a1pJxoTeUDQGkIYbEHFEo.png",
+          "to": "bench_wood.png",
+          "size": "110x48"
+        }
+      ]
+    },
+    {
+      "folder": "装饰",
+      "group": "decor",
+      "items": [
+        {
+          "from": "assets/incoming/github_drop/装饰/J9TJ75U03cpF-oMiKqa28.png",
+          "to": "decor_mat.png",
+          "size": "38x38"
+        },
+        {
+          "from": "assets/incoming/github_drop/装饰/hxa-0dMWkl_6Q9cb2z_yj.png",
+          "to": "decor_crate.png",
+          "size": "38x38"
+        },
+        {
+          "from": "assets/incoming/github_drop/装饰/mpcq4asC2-7A62vmSHn7c.png",
+          "to": "decor_crate_strap.png",
+          "size": "40x40"
+        },
+        {
+          "from": "assets/incoming/github_drop/装饰/oFVakeHf2qY9h3v_6DFx0.png",
+          "to": "decor_bucket.png",
+          "size": "34x36"
+        },
+        {
+          "from": "assets/incoming/github_drop/装饰/p5C-2hDepGjXRZzL_hii4.png",
+          "to": "decor_trash.png",
+          "size": "36x40"
+        },
+        {
+          "from": "assets/incoming/github_drop/装饰/pvWhNvI7XwDx-nuCynUM4.png",
+          "to": "decor_chest.png",
+          "size": "38x34"
+        },
+        {
+          "from": "assets/incoming/github_drop/装饰/q2NYNQCdKf0P7_xKqPmPt.png",
+          "to": "decor_succulent.png",
+          "size": "28x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/装饰/qE3249u6D5SOzpmrTMItG.png",
+          "to": "decor_plant_grey.png",
+          "size": "36x42"
+        },
+        {
+          "from": "assets/incoming/github_drop/装饰/z87bDjEh-BMlkk4DrdRAP.png",
+          "to": "decor_plant_brown.png",
+          "size": "34x40"
+        }
+      ]
+    },
+    {
+      "folder": "食物",
+      "group": "food",
+      "items": [
+        {
+          "from": "assets/incoming/github_drop/食物/-khnxY11CpCzM10YLlRg2.png",
+          "to": "food_fish.png",
+          "size": "32x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/食物/1s_6l9_1qWEnSoJ0Eqa3t.png",
+          "to": "food_chicken.png",
+          "size": "32x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/食物/8q1AwmEjYH_r05FcigmKN.png",
+          "to": "food_chicken2.png",
+          "size": "32x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/食物/IK_GNTXcXx8Z8jZk19u0_.png",
+          "to": "food_nuts_lg.png",
+          "size": "32x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/食物/NiSsYw3dj390nZc2JT0_m.png",
+          "to": "food_nuts_sm.png",
+          "size": "32x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/食物/PDsQmg5oQM-LwEXD30Tdv.png",
+          "to": "food_grape.png",
+          "size": "32x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/食物/Sls_8usb4ukCm9nyNNsjJ.png",
+          "to": "food_cake_slice.png",
+          "size": "32x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/食物/TSUgqW_QuQh9pGFSocpAT.png",
+          "to": "food_cracker.png",
+          "size": "32x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/食物/TZJoZzfbGBSQMI1s311KK.png",
+          "to": "food_bun.png",
+          "size": "32x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/食物/YT9H52j4C15xeZO0vLEdd.png",
+          "to": "food_bread_tall.png",
+          "size": "32x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/食物/a3OmlyT7aXHFEkbNeNjzZ.png",
+          "to": "food_bread_long.png",
+          "size": "32x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/食物/evWhUHsnDxE9Ciciy7keF.png",
+          "to": "food_strawberry_sm.png",
+          "size": "32x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/食物/i0gjjb-a_LVwWaenzxVV3.png",
+          "to": "food_strawberry_lg.png",
+          "size": "32x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/食物/otGqXzvzVRXiA3SBGsK6Q.png",
+          "to": "food_cheese_sm.png",
+          "size": "32x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/食物/pI73eZXcTqNYtYADxRJE2.png",
+          "to": "food_cheese_lg.png",
+          "size": "32x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/食物/qWLwNYwsxqK156ogfKIkP.png",
+          "to": "food_wagashi_pink.png",
+          "size": "32x32"
+        },
+        {
+          "from": "assets/incoming/github_drop/食物/z2ze6BWb9CM8a8tGeFbae.png",
+          "to": "food_wagashi_red.png",
+          "size": "32x32"
+        }
+      ]
+    }
+  ]
+}

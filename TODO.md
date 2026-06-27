@@ -42,7 +42,9 @@
 
 ### 低优先级
 - [x] 皮肤素材管线（incoming/pifu + import_skins + skin_catalog）
-- [ ] 皮肤选择 UI、七日登录/活动/广告解锁逻辑
+- [x] 皮肤换装界面 + 登录/任务/通关/广告解锁（IAA 占位）
+- [x] GitHub 上传家具素材导入（import_github_drop.py）
+- [ ] Unity 移植（见 UNITY_PORT.md）
 - [ ] 剧情模式：每关有剧情对话
 - [ ] 猫的进化系统：随着关卡推进猫越来越聪明
 - [ ] 联机模式：玩家可以扮演猫
