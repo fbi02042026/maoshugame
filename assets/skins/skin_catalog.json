@@ -3,12 +3,208 @@
   "character": "hamster",
   "monetization": "iaa_no_iap",
   "skins": [
-    { "id": "skin_01", "file": "assets/skins/hamster/hamster_skin_01.png", "name": "皮肤1", "unlock": "default", "sort": 1 },
-    { "id": "skin_02", "file": "assets/skins/hamster/hamster_skin_02.png", "name": "皮肤2", "unlock": "default", "sort": 2 },
-    { "id": "skin_03", "file": "assets/skins/hamster/hamster_skin_03.png", "name": "皮肤3", "unlock": "default", "sort": 3 },
-    { "id": "skin_04", "file": "assets/skins/hamster/hamster_skin_04.png", "name": "七日登录", "unlock": "login_day_7", "sort": 4 },
-    { "id": "skin_05", "file": "assets/skins/hamster/hamster_skin_05.png", "name": "活动皮肤", "unlock": "event", "sort": 5 },
-    { "id": "skin_06", "file": "assets/skins/hamster/hamster_skin_06.png", "name": "广告奖励", "unlock": "ad_reward", "sort": 6 },
-    { "id": "skin_07", "file": "assets/skins/hamster/hamster_skin_07.png", "name": "任务奖励", "unlock": "task", "sort": 7 }
+    {
+      "id": "skin_01",
+      "file": "assets/skins/hamster/hamster_skin_01.png",
+      "name": "皮肤1",
+      "unlock": "default",
+      "sort": 1
+    },
+    {
+      "id": "skin_02",
+      "file": "assets/skins/hamster/hamster_skin_02.png",
+      "name": "皮肤2",
+      "unlock": "default",
+      "sort": 2
+    },
+    {
+      "id": "skin_03",
+      "file": "assets/skins/hamster/hamster_skin_03.png",
+      "name": "皮肤3",
+      "unlock": "default",
+      "sort": 3
+    },
+    {
+      "id": "skin_04",
+      "file": "assets/skins/hamster/hamster_skin_04.png",
+      "name": "七日登录",
+      "unlock": "login_day_7",
+      "sort": 4
+    },
+    {
+      "id": "skin_05",
+      "file": "assets/skins/hamster/hamster_skin_05.png",
+      "name": "十四日登录",
+      "unlock": "login_day_14",
+      "sort": 5
+    },
+    {
+      "id": "skin_06",
+      "file": "assets/skins/hamster/hamster_skin_06.png",
+      "name": "广告皮肤06",
+      "unlock": "ad_reward",
+      "sort": 6
+    },
+    {
+      "id": "skin_07",
+      "file": "assets/skins/hamster/hamster_skin_07.png",
+      "name": "广告皮肤07",
+      "unlock": "ad_reward",
+      "sort": 7
+    },
+    {
+      "id": "skin_08",
+      "file": "assets/skins/hamster/hamster_skin_08.png",
+      "name": "广告皮肤08",
+      "unlock": "ad_reward",
+      "sort": 8
+    },
+    {
+      "id": "skin_09",
+      "file": "assets/skins/hamster/hamster_skin_09.png",
+      "name": "广告皮肤09",
+      "unlock": "ad_reward",
+      "sort": 9
+    },
+    {
+      "id": "skin_10",
+      "file": "assets/skins/hamster/hamster_skin_10.png",
+      "name": "广告皮肤10",
+      "unlock": "ad_reward",
+      "sort": 10
+    },
+    {
+      "id": "skin_11",
+      "file": "assets/skins/hamster/hamster_skin_11.png",
+      "name": "任务皮肤11",
+      "unlock": "task",
+      "sort": 11
+    },
+    {
+      "id": "skin_12",
+      "file": "assets/skins/hamster/hamster_skin_12.png",
+      "name": "任务皮肤12",
+      "unlock": "task",
+      "sort": 12
+    },
+    {
+      "id": "skin_13",
+      "file": "assets/skins/hamster/hamster_skin_13.png",
+      "name": "任务皮肤13",
+      "unlock": "task",
+      "sort": 13
+    },
+    {
+      "id": "skin_14",
+      "file": "assets/skins/hamster/hamster_skin_14.png",
+      "name": "任务皮肤14",
+      "unlock": "task",
+      "sort": 14
+    },
+    {
+      "id": "skin_15",
+      "file": "assets/skins/hamster/hamster_skin_15.png",
+      "name": "任务皮肤15",
+      "unlock": "task",
+      "sort": 15
+    },
+    {
+      "id": "skin_16",
+      "file": "assets/skins/hamster/hamster_skin_16.png",
+      "name": "通关皮肤16",
+      "unlock": "level_clear",
+      "sort": 16
+    },
+    {
+      "id": "skin_17",
+      "file": "assets/skins/hamster/hamster_skin_17.png",
+      "name": "通关皮肤17",
+      "unlock": "level_clear",
+      "sort": 17
+    },
+    {
+      "id": "skin_18",
+      "file": "assets/skins/hamster/hamster_skin_18.png",
+      "name": "通关皮肤18",
+      "unlock": "level_clear",
+      "sort": 18
+    },
+    {
+      "id": "skin_19",
+      "file": "assets/skins/hamster/hamster_skin_19.png",
+      "name": "通关皮肤19",
+      "unlock": "level_clear",
+      "sort": 19
+    },
+    {
+      "id": "skin_20",
+      "file": "assets/skins/hamster/hamster_skin_20.png",
+      "name": "通关皮肤20",
+      "unlock": "level_clear",
+      "sort": 20
+    },
+    {
+      "id": "skin_21",
+      "file": "assets/skins/hamster/hamster_skin_21.png",
+      "name": "活动皮肤21",
+      "unlock": "event",
+      "sort": 21
+    },
+    {
+      "id": "skin_22",
+      "file": "assets/skins/hamster/hamster_skin_22.png",
+      "name": "活动皮肤22",
+      "unlock": "event",
+      "sort": 22
+    },
+    {
+      "id": "skin_23",
+      "file": "assets/skins/hamster/hamster_skin_23.png",
+      "name": "活动皮肤23",
+      "unlock": "event",
+      "sort": 23
+    },
+    {
+      "id": "skin_24",
+      "file": "assets/skins/hamster/hamster_skin_24.png",
+      "name": "活动皮肤24",
+      "unlock": "event",
+      "sort": 24
+    },
+    {
+      "id": "skin_25",
+      "file": "assets/skins/hamster/hamster_skin_25.png",
+      "name": "活动皮肤25",
+      "unlock": "event",
+      "sort": 25
+    },
+    {
+      "id": "skin_26",
+      "file": "assets/skins/hamster/hamster_skin_26.png",
+      "name": "活动皮肤26",
+      "unlock": "event",
+      "sort": 26
+    },
+    {
+      "id": "skin_27",
+      "file": "assets/skins/hamster/hamster_skin_27.png",
+      "name": "活动皮肤27",
+      "unlock": "event",
+      "sort": 27
+    },
+    {
+      "id": "skin_28",
+      "file": "assets/skins/hamster/hamster_skin_28.png",
+      "name": "活动皮肤28",
+      "unlock": "event",
+      "sort": 28
+    },
+    {
+      "id": "skin_29",
+      "file": "assets/skins/hamster/hamster_skin_29.png",
+      "name": "活动皮肤29",
+      "unlock": "event",
+      "sort": 29
+    }
   ]
 }
