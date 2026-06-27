@@ -1,0 +1,64 @@
+{
+  "comment": "仓鼠皮肤。IAA 无内购：default=开局可选；login_day_7=七日登录；event=活动；ad_reward=看广告领取；task=任务奖励",
+  "incoming_dir": "assets/incoming/pifu",
+  "output_dir": "assets/skins/hamster",
+  "target_size": { "w": 140, "h": 106 },
+  "skins": [
+    {
+      "id": "skin_01",
+      "file": "hamster_skin_01.png",
+      "name": "皮肤1",
+      "unlock": "default",
+      "sort": 1,
+      "aliases": ["皮肤1", "皮肤 1", "pifu1", "skin1", "skin_01", "hamster_skin_01"]
+    },
+    {
+      "id": "skin_02",
+      "file": "hamster_skin_02.png",
+      "name": "皮肤2",
+      "unlock": "default",
+      "sort": 2,
+      "aliases": ["皮肤2", "皮肤 2", "pifu2", "skin2", "skin_02", "hamster_skin_02"]
+    },
+    {
+      "id": "skin_03",
+      "file": "hamster_skin_03.png",
+      "name": "皮肤3",
+      "unlock": "default",
+      "sort": 3,
+      "aliases": ["皮肤3", "皮肤 3", "pifu3", "skin3", "skin_03", "hamster_skin_03"]
+    },
+    {
+      "id": "skin_04",
+      "file": "hamster_skin_04.png",
+      "name": "七日登录",
+      "unlock": "login_day_7",
+      "sort": 4,
+      "aliases": ["7日", "七日", "7天", "七天", "登录7", "七日登录", "皮肤4", "皮肤 4", "skin4", "skin_04", "hamster_skin_04"]
+    },
+    {
+      "id": "skin_05",
+      "file": "hamster_skin_05.png",
+      "name": "活动皮肤",
+      "unlock": "event",
+      "sort": 5,
+      "aliases": ["活动", "活动皮肤", "皮肤5", "皮肤 5", "skin5", "skin_05", "hamster_skin_05"]
+    },
+    {
+      "id": "skin_06",
+      "file": "hamster_skin_06.png",
+      "name": "广告奖励",
+      "unlock": "ad_reward",
+      "sort": 6,
+      "aliases": ["广告", "看广告", "广告皮肤", "皮肤6", "皮肤 6", "skin6", "skin_06", "hamster_skin_06"]
+    },
+    {
+      "id": "skin_07",
+      "file": "hamster_skin_07.png",
+      "name": "任务奖励",
+      "unlock": "task",
+      "sort": 7,
+      "aliases": ["任务", "任务皮肤", "皮肤7", "皮肤 7", "skin7", "skin_07", "hamster_skin_07"]
+    }
+  ]
+}

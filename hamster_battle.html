@@ -81,7 +81,12 @@ const G = {
     canPlay: false,
     foodStolen: false,
     spawnCatBed: null,
+    equippedSkinId: 'skin_01',
+    unlockedSkins: ['skin_01', 'skin_02', 'skin_03'],
 };
+
+// ---- 皮肤（IAA 无内购，见 assets/skins/skin_catalog.json） ----
+let SKIN_CATALOG = null;
 
 // ---- 存档 ----
 const SAVE_KEY = 'hamster_battle_save_v1';
@@ -92,6 +97,8 @@ function loadSave(){
         const data = JSON.parse(raw);
         if(typeof data.maxUnlocked === 'number') G.maxUnlocked = Math.max(1, Math.min(8, data.maxUnlocked));
         if(data.bestStars && typeof data.bestStars === 'object') G.bestStars = data.bestStars;
+        if(typeof data.equippedSkinId === 'string') G.equippedSkinId = data.equippedSkinId;
+        if(Array.isArray(data.unlockedSkins) && data.unlockedSkins.length) G.unlockedSkins = data.unlockedSkins;
     }catch(e){}
 }
 function saveProgress(){
@@ -99,6 +106,8 @@ function saveProgress(){
         localStorage.setItem(SAVE_KEY, JSON.stringify({
             maxUnlocked: G.maxUnlocked,
             bestStars: G.bestStars,
+            equippedSkinId: G.equippedSkinId,
+            unlockedSkins: G.unlockedSkins,
         }));
     }catch(e){}
 }
@@ -193,6 +202,35 @@ function loadImages(){
     imagesLoaded = 0; criticalLoaded = 0; G.canPlay = false;
     for(let k in critical) loadOneImage(k, critical[k], true);
     for(let k in deferred) loadOneImage(k, deferred[k], false);
+    loadSkinImages();
+}
+function loadSkinImages(){
+    fetch('assets/skins/skin_catalog.json').then(r=>r.ok?r.json():null).then(data=>{
+        if(!data || !data.skins) return;
+        SKIN_CATALOG = data;
+        for(const s of data.skins){
+            if(IMAGES[s.id]) continue;
+            const img = new Image();
+            img.onerror = ()=>{ img._failed = true; };
+            img.src = s.file;
+            IMAGES[s.id] = img;
+        }
+    }).catch(()=>{});
+}
+function getHamsterBodyImage(){
+    const id = G.equippedSkinId || 'skin_01';
+    const skin = IMAGES[id];
+    if(skin && skin.complete && !skin._failed) return skin;
+    return IMAGES.mouse;
+}
+function isSkinUnlocked(id){
+    return G.unlockedSkins && G.unlockedSkins.indexOf(id) >= 0;
+}
+function unlockSkin(id, reason){
+    if(!id || isSkinUnlocked(id)) return;
+    G.unlockedSkins = G.unlockedSkins || [];
+    G.unlockedSkins.push(id);
+    saveProgress();
 }
 loadImages();
 loadSave();
@@ -2962,6 +3000,14 @@ function drawHamsterSprite(x,y,r,face,dir){
             ctx.restore();
             return;
         }
+    }
+    const bodyImg = getHamsterBodyImage();
+    if(bodyImg && bodyImg.complete && !bodyImg._failed){
+        const targetH = r * 2.8;
+        const scale = targetH / bodyImg.naturalHeight;
+        const targetW = bodyImg.naturalWidth * scale;
+        if(dir===2) ctx.scale(-1,1);
+        ctx.drawImage(bodyImg, -targetW/2, -targetH/2, targetW, targetH);
     } else if(IMAGES.mouse && IMAGES.mouse.complete && !IMAGES.mouse._failed){
         const img=IMAGES.mouse;
         const targetH = r * 2.8;

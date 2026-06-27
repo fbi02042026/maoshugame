@@ -56,10 +56,24 @@
 
 `food_fish.png`、`food_chicken.png`、`food_nuts_lg.png` … `food_wagashi_red.png`（均 32×32）
 
-## 八、打包压缩
+## 八、仓鼠皮肤（`assets/skins/hamster/`）
+
+IAA 无内购。原图放 `assets/incoming/pifu/`，运行 `python tools/import_skins.py`。
+
+| 文件 | 解锁方式 |
+|------|----------|
+| `hamster_skin_01.png` … `03` | 开局可选（`default`） |
+| `hamster_skin_04.png` | 连续登录 7 日（`login_day_7`） |
+| `hamster_skin_05.png` | 活动（`event`） |
+| `hamster_skin_06.png` | 看广告领取（`ad_reward`） |
+| `hamster_skin_07.png` | 任务奖励（`task`） |
+
+配置见 `tools/skin_manifest.json`，运行时读 `assets/skins/skin_catalog.json`。
+
+## 九、打包压缩
 
 仓库根目录 `assets_pack.zip` 含全部 `assets/*.png`，解压替换或压缩后覆盖即可。
 
-## 九、已废弃（勿再使用）
+## 十、已废弃（勿再使用）
 
 旧版 `fridge.png`、`sofa.png`、`chair.png` 等已删除，统一用 `top_*` / `wall_*` / `decor_*` / `sofa_*` 新素材。
