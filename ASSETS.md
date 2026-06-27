@@ -58,7 +58,7 @@
 
 ## 八、仓鼠皮肤（`assets/skins/hamster/`）
 
-IAA 无内购。原图放 `assets/incoming/pifu/`，运行 `python tools/import_skins.py`。
+IAA 无内购。皮肤图放 `assets/skins/hamster/`（已改名）或 `assets/incoming/pifu/`（未改名），运行 `python tools/import_skins.py`。
 
 | 文件 | 解锁方式 |
 |------|----------|

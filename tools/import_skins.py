@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""从 assets/incoming/pifu 导入并重命名仓鼠皮肤。
+"""导入/同步仓鼠皮肤，生成 skin_catalog.json。
 
 用法（仓库根目录）：
   python tools/import_skins.py
 
-把原图放进 assets/incoming/pifu/，支持中文名如 皮肤1.png、七日.png。
-输出到 assets/skins/hamster/，并生成 assets/skins/skin_catalog.json 供游戏读取。
+两种放图方式（二选一）：
+  A. 已改名 hamster_skin_XX.png → 直接放 assets/skins/hamster/
+  B. 未改名的原图（皮肤1.png 等）→ 放 assets/incoming/pifu/，脚本会重命名写入 hamster/
+
+优先读取 incoming/pifu；若为空则扫描 assets/skins/hamster/ 并原地处理。
 """
 import json
 import re
-import shutil
 from pathlib import Path
 
 from PIL import Image
@@ -63,6 +65,16 @@ def match_skin(filename: str, alias_map: dict, skins_by_id: dict):
     return None
 
 
+def collect_pngs(incoming: Path, out_dir: Path):
+    incoming_pngs = sorted(incoming.glob("*.png"))
+    if incoming_pngs:
+        return incoming_pngs, "incoming"
+    out_pngs = sorted(out_dir.glob("*.png"))
+    if out_pngs:
+        return out_pngs, "hamster"
+    return [], None
+
+
 def main():
     with open(MANIFEST, encoding="utf-8") as f:
         data = json.load(f)
@@ -78,10 +90,14 @@ def main():
     incoming.mkdir(parents=True, exist_ok=True)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    pngs = sorted(incoming.glob("*.png"))
+    pngs, source = collect_pngs(incoming, out_dir)
     if not pngs:
-        print(f"提示: {incoming} 里没有 PNG，请把皮肤图放进该文件夹后重试")
+        print("未找到皮肤 PNG。请放到以下任一目录后重试：")
+        print(f"  1) {out_dir}  （已改好名 hamster_skin_XX.png，推荐）")
+        print(f"  2) {incoming}  （未改名的原图，脚本会重命名导入）")
         return
+
+    print(f"来源: {source} ({len(pngs)} 张)")
 
     used_ids = set()
     copied = 0
@@ -100,7 +116,10 @@ def main():
         dst = out_dir / skin["file"]
         img = Image.open(src)
         resize_cover(img, tw, th).save(dst, optimize=True)
-        print(f"OK {src.name} -> {dst.relative_to(ROOT).as_posix()} ({skin['id']} {skin['unlock']})")
+        if source == "incoming":
+            print(f"OK {src.name} -> {dst.relative_to(ROOT).as_posix()} ({skin['id']} {skin['unlock']})")
+        else:
+            print(f"OK {dst.name} ({skin['id']} {skin['unlock']})")
         copied += 1
         imported.append(skin)
 
@@ -120,15 +139,12 @@ def main():
         ],
     }
     catalog_path = ROOT / "assets" / "skins" / "skin_catalog.json"
-    catalog_path.parent.mkdir(parents=True, exist_ok=True)
     with open(catalog_path, "w", encoding="utf-8") as f:
         json.dump(catalog, f, ensure_ascii=False, indent=2)
     print(f"写入 {catalog_path.relative_to(ROOT).as_posix()}")
-
-    print(f"\n完成: 导入 {copied} 张")
+    print(f"\n完成: 处理 {copied} 张皮肤")
     if skipped:
-        print("未识别文件:", ", ".join(skipped))
-        print("请在 tools/skin_manifest.json 为该皮肤添加 aliases 后重跑")
+        print("未识别:", ", ".join(skipped))
 
 
 if __name__ == "__main__":
