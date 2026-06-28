@@ -1,0 +1,389 @@
+[
+  {
+    "__type__": "cc.SceneAsset",
+    "_name": "Room2Edit",
+    "scene": {
+      "__id__": 1
+    }
+  },
+  {
+    "__type__": "cc.Scene",
+    "_name": "Room2Edit",
+    "_parent": null,
+    "_children": [
+      {
+        "__id__": 2
+      }
+    ],
+    "_active": true,
+    "_components": [],
+    "_prefab": null,
+    "autoReleaseAssets": false,
+    "_globals": {
+      "__id__": 13
+    },
+    "_id": "e0010002-0002-4002-8002-000000000002"
+  },
+  {
+    "__type__": "cc.Node",
+    "_name": "Canvas",
+    "_parent": {
+      "__id__": 1
+    },
+    "_children": [
+      {
+        "__id__": 3
+      },
+      {
+        "__id__": 7
+      }
+    ],
+    "_active": true,
+    "_components": [
+      {
+        "__id__": 5
+      },
+      {
+        "__id__": 6
+      }
+    ],
+    "_lpos": {
+      "__type__": "cc.Vec3",
+      "x": 360.0,
+      "y": 640.0,
+      "z": 0
+    },
+    "_lrot": {
+      "__type__": "cc.Quat",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "w": 1
+    },
+    "_lscale": {
+      "__type__": "cc.Vec3",
+      "x": 1,
+      "y": 1,
+      "z": 1
+    },
+    "_layer": 33554432,
+    "_euler": {
+      "__type__": "cc.Vec3",
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "_id": "f7c376257268427ead4e17",
+    "_prefab": null
+  },
+  {
+    "__type__": "cc.Node",
+    "_name": "Camera",
+    "_parent": {
+      "__id__": 2
+    },
+    "_children": [],
+    "_active": true,
+    "_components": [
+      {
+        "__id__": 4
+      }
+    ],
+    "_lpos": {
+      "__type__": "cc.Vec3",
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "_lrot": {
+      "__type__": "cc.Quat",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "w": 1
+    },
+    "_lscale": {
+      "__type__": "cc.Vec3",
+      "x": 1,
+      "y": 1,
+      "z": 1
+    },
+    "_layer": 33554432,
+    "_euler": {
+      "__type__": "cc.Vec3",
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "_id": "f8ece47109a04020a4d1e9",
+    "_prefab": null
+  },
+  {
+    "__type__": "cc.Camera",
+    "node": {
+      "__id__": 3
+    },
+    "_enabled": true,
+    "_projection": 0,
+    "_priority": 10,
+    "_orthoHeight": 560,
+    "_near": 0,
+    "_far": 2000,
+    "_color": {
+      "__type__": "cc.Color",
+      "r": 80,
+      "g": 80,
+      "b": 90,
+      "a": 255
+    },
+    "_depth": 1,
+    "_visibility": 1108344832,
+    "_id": "f7a7d3287fb44229a1033e"
+  },
+  {
+    "__type__": "cc.UITransform",
+    "node": {
+      "__id__": 2
+    },
+    "_enabled": true,
+    "_contentSize": {
+      "__type__": "cc.Size",
+      "width": 720,
+      "height": 1280
+    },
+    "_anchorPoint": {
+      "__type__": "cc.Vec2",
+      "x": 0.5,
+      "y": 0.5
+    },
+    "_id": "227b6352094f4c9292035c",
+    "__prefab": null
+  },
+  {
+    "__type__": "cc.Canvas",
+    "node": {
+      "__id__": 2
+    },
+    "_enabled": true,
+    "_alignCanvasWithScreen": true,
+    "_id": "651b8e3791ae48f5bb33ba"
+  },
+  {
+    "__type__": "cc.Node",
+    "_name": "Room2",
+    "_parent": {
+      "__id__": 2
+    },
+    "_children": [
+      {
+        "__id__": 9
+      },
+      {
+        "__id__": 11
+      }
+    ],
+    "_active": true,
+    "_components": [
+      {
+        "__id__": 8
+      }
+    ],
+    "_lpos": {
+      "__type__": "cc.Vec3",
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "_lrot": {
+      "__type__": "cc.Quat",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "w": 1
+    },
+    "_lscale": {
+      "__type__": "cc.Vec3",
+      "x": 1,
+      "y": 1,
+      "z": 1
+    },
+    "_layer": 33554432,
+    "_euler": {
+      "__type__": "cc.Vec3",
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "_id": "172e85ff06014e8eb38dce",
+    "_prefab": null
+  },
+  {
+    "__type__": "cc.UITransform",
+    "node": {
+      "__id__": 7
+    },
+    "_enabled": true,
+    "_contentSize": {
+      "__type__": "cc.Size",
+      "width": 1013,
+      "height": 1463
+    },
+    "_anchorPoint": {
+      "__type__": "cc.Vec2",
+      "x": 0.5,
+      "y": 0.5
+    },
+    "_id": "60ae935eb7ef46dea93e1e",
+    "__prefab": null
+  },
+  {
+    "__type__": "cc.Node",
+    "_name": "鼠洞_可拖动",
+    "_parent": {
+      "__id__": 7
+    },
+    "_children": [],
+    "_active": true,
+    "_components": [
+      {
+        "__id__": 10
+      }
+    ],
+    "_lpos": {
+      "__type__": "cc.Vec3",
+      "x": -169.0,
+      "y": -696.5,
+      "z": 0
+    },
+    "_lrot": {
+      "__type__": "cc.Quat",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "w": 1
+    },
+    "_lscale": {
+      "__type__": "cc.Vec3",
+      "x": 1,
+      "y": 1,
+      "z": 1
+    },
+    "_layer": 33554432,
+    "_euler": {
+      "__type__": "cc.Vec3",
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "_id": "af4b0a8f95fa4996907066",
+    "_prefab": null
+  },
+  {
+    "__type__": "cc.UITransform",
+    "node": {
+      "__id__": 9
+    },
+    "_enabled": true,
+    "_contentSize": {
+      "__type__": "cc.Size",
+      "width": 48,
+      "height": 48
+    },
+    "_anchorPoint": {
+      "__type__": "cc.Vec2",
+      "x": 0.5,
+      "y": 0.5
+    },
+    "_id": "70785e5c1b444c0ba503ef",
+    "__prefab": null
+  },
+  {
+    "__type__": "cc.Node",
+    "_name": "家具_拖图片到这里",
+    "_parent": {
+      "__id__": 7
+    },
+    "_children": [],
+    "_active": true,
+    "_components": [
+      {
+        "__id__": 12
+      }
+    ],
+    "_lpos": {
+      "__type__": "cc.Vec3",
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "_lrot": {
+      "__type__": "cc.Quat",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "w": 1
+    },
+    "_lscale": {
+      "__type__": "cc.Vec3",
+      "x": 1,
+      "y": 1,
+      "z": 1
+    },
+    "_layer": 33554432,
+    "_euler": {
+      "__type__": "cc.Vec3",
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "_id": "1fe8f975e9ea4ec2b0fa3b",
+    "_prefab": null
+  },
+  {
+    "__type__": "cc.UITransform",
+    "node": {
+      "__id__": 11
+    },
+    "_enabled": true,
+    "_contentSize": {
+      "__type__": "cc.Size",
+      "width": 973,
+      "height": 1383
+    },
+    "_anchorPoint": {
+      "__type__": "cc.Vec2",
+      "x": 0.5,
+      "y": 0.5
+    },
+    "_id": "349a7c6df1cf4a0c8dbcf9",
+    "__prefab": null
+  },
+  {
+    "__type__": "cc.SceneGlobals",
+    "ambient": {
+      "__id__": 14
+    },
+    "shadows": {
+      "__id__": 15
+    },
+    "skybox": {
+      "__id__": 9
+    },
+    "_id": "9f37a713b8774d02a7a0fc",
+    "_skybox": {
+      "__id__": 16
+    }
+  },
+  {
+    "__type__": "cc.AmbientInfo",
+    "_id": "8c5f6e50b2444b10b4104c"
+  },
+  {
+    "__type__": "cc.ShadowsInfo",
+    "_id": "13f74a9a170041a98a3594"
+  },
+  {
+    "__type__": "cc.SkyboxInfo",
+    "_id": "57219049198d4c0092a526"
+  }
+]

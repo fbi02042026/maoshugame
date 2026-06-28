@@ -2,3 +2,10 @@ __pycache__/
 *.pyc
 node_modules/
 .DS_Store
+
+# Cocos Creator 生成目录
+cocos/**/library/
+cocos/**/temp/
+cocos/**/local/
+cocos/**/build/
+cocos/**/profiles/

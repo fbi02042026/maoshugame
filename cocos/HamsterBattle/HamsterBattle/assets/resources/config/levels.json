@@ -1,0 +1,108 @@
+[
+  {
+    "id": 1,
+    "name": "厨房",
+    "roomId": 1,
+    "food": 1,
+    "catSpeed": 1.2,
+    "alertSpeed": 0.4,
+    "energy": 5,
+    "traps": []
+  },
+  {
+    "id": 2,
+    "name": "客厅",
+    "roomId": 1,
+    "food": 3,
+    "catSpeed": 1.4,
+    "alertSpeed": 0.5,
+    "energy": 6,
+    "traps": [
+      "banana"
+    ]
+  },
+  {
+    "id": 3,
+    "name": "餐厅",
+    "roomId": 2,
+    "food": 4,
+    "catSpeed": 1.6,
+    "alertSpeed": 0.6,
+    "energy": 7,
+    "traps": [
+      "banana",
+      "mousetrap"
+    ]
+  },
+  {
+    "id": 4,
+    "name": "卧室",
+    "roomId": 2,
+    "food": 9,
+    "catSpeed": 1.8,
+    "alertSpeed": 0.7,
+    "energy": 7,
+    "traps": [
+      "banana",
+      "mousetrap"
+    ]
+  },
+  {
+    "id": 5,
+    "name": "书房",
+    "roomId": 3,
+    "food": 11,
+    "catSpeed": 2.0,
+    "alertSpeed": 0.8,
+    "energy": 8,
+    "traps": [
+      "banana",
+      "mousetrap",
+      "bucket"
+    ]
+  },
+  {
+    "id": 6,
+    "name": "阁楼",
+    "roomId": 4,
+    "food": 14,
+    "catSpeed": 2.2,
+    "alertSpeed": 0.9,
+    "energy": 8,
+    "traps": [
+      "banana",
+      "mousetrap",
+      "bucket"
+    ]
+  },
+  {
+    "id": 7,
+    "name": "地下室",
+    "roomId": 5,
+    "food": 17,
+    "catSpeed": 2.4,
+    "alertSpeed": 1.0,
+    "energy": 9,
+    "traps": [
+      "banana",
+      "mousetrap",
+      "bucket",
+      "pot"
+    ]
+  },
+  {
+    "id": 8,
+    "name": "豪宅",
+    "roomId": 5,
+    "food": 20,
+    "catSpeed": 2.6,
+    "alertSpeed": 1.1,
+    "energy": 10,
+    "traps": [
+      "banana",
+      "mousetrap",
+      "bucket",
+      "pot"
+    ]
+  }
+]
