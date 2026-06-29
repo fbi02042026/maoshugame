@@ -1,0 +1,13 @@
+{
+  "hamsterBaseSpeed": 1.93,
+  "hamsterSpeedBoost": 1.75,
+  "hamsterBoostDuration": 1.5,
+  "catBaseSpeed": 1.93,
+  "catChaseMultiplier": 1.0,
+  "catPatrolMultiplier": 0.5,
+  "catAccel": 6.0,
+  "catDecel": 2.5,
+  "catBaseTurnRate": 5.0,
+  "catStunDecay": 0.5,
+  "level1RoomScale": 0.75
+}

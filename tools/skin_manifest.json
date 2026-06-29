@@ -1,0 +1,431 @@
+{
+  "comment": "仓鼠皮肤 01-30。IAA 无内购。已按 hamster_skin_XX.png 命名时直接放 incoming/pifu 运行 import_skins.py",
+  "incoming_dir": "assets/incoming/pifu",
+  "output_dir": "assets/skins/hamster",
+  "target_size": {
+    "w": 140,
+    "h": 106
+  },
+  "skins": [
+    {
+      "id": "skin_01",
+      "file": "hamster_skin_01.png",
+      "name": "皮肤1",
+      "unlock": "default",
+      "sort": 1,
+      "aliases": [
+        "皮肤1",
+        "皮肤 1",
+        "skin1",
+        "skin_01",
+        "hamster_skin_01"
+      ]
+    },
+    {
+      "id": "skin_02",
+      "file": "hamster_skin_02.png",
+      "name": "皮肤2",
+      "unlock": "default",
+      "sort": 2,
+      "aliases": [
+        "皮肤2",
+        "皮肤 2",
+        "skin2",
+        "skin_02",
+        "hamster_skin_02"
+      ]
+    },
+    {
+      "id": "skin_03",
+      "file": "hamster_skin_03.png",
+      "name": "皮肤3",
+      "unlock": "default",
+      "sort": 3,
+      "aliases": [
+        "皮肤3",
+        "皮肤 3",
+        "skin3",
+        "skin_03",
+        "hamster_skin_03"
+      ]
+    },
+    {
+      "id": "skin_04",
+      "file": "hamster_skin_04.png",
+      "name": "七日登录",
+      "unlock": "login_day_7",
+      "sort": 4,
+      "aliases": [
+        "皮肤4",
+        "皮肤 4",
+        "skin4",
+        "skin_04",
+        "hamster_skin_04"
+      ]
+    },
+    {
+      "id": "skin_05",
+      "file": "hamster_skin_05.png",
+      "name": "十四日登录",
+      "unlock": "login_day_14",
+      "sort": 5,
+      "aliases": [
+        "皮肤5",
+        "皮肤 5",
+        "skin5",
+        "skin_05",
+        "hamster_skin_05"
+      ]
+    },
+    {
+      "id": "skin_06",
+      "file": "hamster_skin_06.png",
+      "name": "广告皮肤06",
+      "unlock": "ad_reward",
+      "sort": 6,
+      "aliases": [
+        "皮肤6",
+        "皮肤 6",
+        "skin6",
+        "skin_06",
+        "hamster_skin_06"
+      ]
+    },
+    {
+      "id": "skin_07",
+      "file": "hamster_skin_07.png",
+      "name": "广告皮肤07",
+      "unlock": "ad_reward",
+      "sort": 7,
+      "aliases": [
+        "皮肤7",
+        "皮肤 7",
+        "skin7",
+        "skin_07",
+        "hamster_skin_07"
+      ]
+    },
+    {
+      "id": "skin_08",
+      "file": "hamster_skin_08.png",
+      "name": "广告皮肤08",
+      "unlock": "ad_reward",
+      "sort": 8,
+      "aliases": [
+        "皮肤8",
+        "皮肤 8",
+        "skin8",
+        "skin_08",
+        "hamster_skin_08"
+      ]
+    },
+    {
+      "id": "skin_09",
+      "file": "hamster_skin_09.png",
+      "name": "广告皮肤09",
+      "unlock": "ad_reward",
+      "sort": 9,
+      "aliases": [
+        "皮肤9",
+        "皮肤 9",
+        "skin9",
+        "skin_09",
+        "hamster_skin_09"
+      ]
+    },
+    {
+      "id": "skin_10",
+      "file": "hamster_skin_10.png",
+      "name": "广告皮肤10",
+      "unlock": "ad_reward",
+      "sort": 10,
+      "aliases": [
+        "皮肤10",
+        "皮肤 10",
+        "skin10",
+        "skin_10",
+        "hamster_skin_10"
+      ]
+    },
+    {
+      "id": "skin_11",
+      "file": "hamster_skin_11.png",
+      "name": "任务皮肤11",
+      "unlock": "task",
+      "sort": 11,
+      "aliases": [
+        "皮肤11",
+        "皮肤 11",
+        "skin11",
+        "skin_11",
+        "hamster_skin_11"
+      ]
+    },
+    {
+      "id": "skin_12",
+      "file": "hamster_skin_12.png",
+      "name": "任务皮肤12",
+      "unlock": "task",
+      "sort": 12,
+      "aliases": [
+        "皮肤12",
+        "皮肤 12",
+        "skin12",
+        "skin_12",
+        "hamster_skin_12"
+      ]
+    },
+    {
+      "id": "skin_13",
+      "file": "hamster_skin_13.png",
+      "name": "任务皮肤13",
+      "unlock": "task",
+      "sort": 13,
+      "aliases": [
+        "皮肤13",
+        "皮肤 13",
+        "skin13",
+        "skin_13",
+        "hamster_skin_13"
+      ]
+    },
+    {
+      "id": "skin_14",
+      "file": "hamster_skin_14.png",
+      "name": "任务皮肤14",
+      "unlock": "task",
+      "sort": 14,
+      "aliases": [
+        "皮肤14",
+        "皮肤 14",
+        "skin14",
+        "skin_14",
+        "hamster_skin_14"
+      ]
+    },
+    {
+      "id": "skin_15",
+      "file": "hamster_skin_15.png",
+      "name": "任务皮肤15",
+      "unlock": "task",
+      "sort": 15,
+      "aliases": [
+        "皮肤15",
+        "皮肤 15",
+        "skin15",
+        "skin_15",
+        "hamster_skin_15"
+      ]
+    },
+    {
+      "id": "skin_16",
+      "file": "hamster_skin_16.png",
+      "name": "通关皮肤16",
+      "unlock": "level_clear",
+      "sort": 16,
+      "aliases": [
+        "皮肤16",
+        "皮肤 16",
+        "skin16",
+        "skin_16",
+        "hamster_skin_16"
+      ]
+    },
+    {
+      "id": "skin_17",
+      "file": "hamster_skin_17.png",
+      "name": "通关皮肤17",
+      "unlock": "level_clear",
+      "sort": 17,
+      "aliases": [
+        "皮肤17",
+        "皮肤 17",
+        "skin17",
+        "skin_17",
+        "hamster_skin_17"
+      ]
+    },
+    {
+      "id": "skin_18",
+      "file": "hamster_skin_18.png",
+      "name": "通关皮肤18",
+      "unlock": "level_clear",
+      "sort": 18,
+      "aliases": [
+        "皮肤18",
+        "皮肤 18",
+        "skin18",
+        "skin_18",
+        "hamster_skin_18"
+      ]
+    },
+    {
+      "id": "skin_19",
+      "file": "hamster_skin_19.png",
+      "name": "通关皮肤19",
+      "unlock": "level_clear",
+      "sort": 19,
+      "aliases": [
+        "皮肤19",
+        "皮肤 19",
+        "skin19",
+        "skin_19",
+        "hamster_skin_19"
+      ]
+    },
+    {
+      "id": "skin_20",
+      "file": "hamster_skin_20.png",
+      "name": "通关皮肤20",
+      "unlock": "level_clear",
+      "sort": 20,
+      "aliases": [
+        "皮肤20",
+        "皮肤 20",
+        "skin20",
+        "skin_20",
+        "hamster_skin_20"
+      ]
+    },
+    {
+      "id": "skin_21",
+      "file": "hamster_skin_21.png",
+      "name": "活动皮肤21",
+      "unlock": "event",
+      "sort": 21,
+      "aliases": [
+        "皮肤21",
+        "皮肤 21",
+        "skin21",
+        "skin_21",
+        "hamster_skin_21"
+      ]
+    },
+    {
+      "id": "skin_22",
+      "file": "hamster_skin_22.png",
+      "name": "活动皮肤22",
+      "unlock": "event",
+      "sort": 22,
+      "aliases": [
+        "皮肤22",
+        "皮肤 22",
+        "skin22",
+        "skin_22",
+        "hamster_skin_22"
+      ]
+    },
+    {
+      "id": "skin_23",
+      "file": "hamster_skin_23.png",
+      "name": "活动皮肤23",
+      "unlock": "event",
+      "sort": 23,
+      "aliases": [
+        "皮肤23",
+        "皮肤 23",
+        "skin23",
+        "skin_23",
+        "hamster_skin_23"
+      ]
+    },
+    {
+      "id": "skin_24",
+      "file": "hamster_skin_24.png",
+      "name": "活动皮肤24",
+      "unlock": "event",
+      "sort": 24,
+      "aliases": [
+        "皮肤24",
+        "皮肤 24",
+        "skin24",
+        "skin_24",
+        "hamster_skin_24"
+      ]
+    },
+    {
+      "id": "skin_25",
+      "file": "hamster_skin_25.png",
+      "name": "活动皮肤25",
+      "unlock": "event",
+      "sort": 25,
+      "aliases": [
+        "皮肤25",
+        "皮肤 25",
+        "skin25",
+        "skin_25",
+        "hamster_skin_25"
+      ]
+    },
+    {
+      "id": "skin_26",
+      "file": "hamster_skin_26.png",
+      "name": "活动皮肤26",
+      "unlock": "event",
+      "sort": 26,
+      "aliases": [
+        "皮肤26",
+        "皮肤 26",
+        "skin26",
+        "skin_26",
+        "hamster_skin_26"
+      ]
+    },
+    {
+      "id": "skin_27",
+      "file": "hamster_skin_27.png",
+      "name": "活动皮肤27",
+      "unlock": "event",
+      "sort": 27,
+      "aliases": [
+        "皮肤27",
+        "皮肤 27",
+        "skin27",
+        "skin_27",
+        "hamster_skin_27"
+      ]
+    },
+    {
+      "id": "skin_28",
+      "file": "hamster_skin_28.png",
+      "name": "活动皮肤28",
+      "unlock": "event",
+      "sort": 28,
+      "aliases": [
+        "皮肤28",
+        "皮肤 28",
+        "skin28",
+        "skin_28",
+        "hamster_skin_28"
+      ]
+    },
+    {
+      "id": "skin_29",
+      "file": "hamster_skin_29.png",
+      "name": "活动皮肤29",
+      "unlock": "event",
+      "sort": 29,
+      "aliases": [
+        "皮肤29",
+        "皮肤 29",
+        "skin29",
+        "skin_29",
+        "hamster_skin_29"
+      ]
+    },
+    {
+      "id": "skin_30",
+      "file": "hamster_skin_30.png",
+      "name": "活动皮肤30",
+      "unlock": "event",
+      "sort": 30,
+      "aliases": [
+        "皮肤30",
+        "皮肤 30",
+        "skin30",
+        "skin_30",
+        "hamster_skin_30"
+      ]
+    }
+  ]
+}

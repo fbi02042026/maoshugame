@@ -1,8 +1,13 @@
+__pycache__/
+*.pyc
+node_modules/
+.DS_Store
+**/.DS_Store
 
+# Cocos Creator 生成目录
 /library/
 /temp/
 /local/
 /build/
 /profiles/
 /native/
-**/.DS_Store
