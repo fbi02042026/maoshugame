@@ -18,22 +18,28 @@ import { loadSpriteByKey } from '../core/AssetLoader';
 import { GameConfig } from '../core/GameConfig';
 import { applyActorSpriteFrame, applyNativeSpriteFrame, GAME_LAYER, setLayerRecursive } from '../core/LayerUtil';
 import { htmlToCocos, cocosToHtml } from '../core/MapCoords';
-import { DESIGN_HEIGHT, DESIGN_WIDTH } from '../core/DesignConstants';
+import { DESIGN_HEIGHT, DESIGN_WIDTH, HAMSTER_RADIUS } from '../core/DesignConstants';
 import { GameManager } from '../core/GameManager';
 import { HamsterController } from '../hamster/HamsterController';
-import type { MapData } from '../data/GameTypes';
+import type { FurnitureItem, MapData } from '../data/GameTypes';
 import { VirtualJoystick } from '../ui/VirtualJoystick';
 import { WorldFollow, calcMapFillZoom, L1_CAMERA_ZOOM } from './WorldFollow';
-import { createCatSpawn, createHamsterSpawn, generateMapFromJson, getCollidableRects } from './MapGenerator';
+import { createCatSpawn, createHamsterSpawn, generateMapFromJson, getCollidableRects, randomizeRatHolePosition } from './MapGenerator';
 import { MapView } from './MapView';
 import { loadRoomForLevel } from '../room/RoomPrefabLoader';
 import { SaveSystem } from '../core/SaveSystem';
 import { GameResultOverlay } from '../ui/GameResultOverlay';
-import { getTalentById } from '../data/ChapterTypes';
+import { TitleOverlay } from '../ui/TitleOverlay';
+import { DialogueBubble } from '../ui/DialogueBubble';
+import { ENTRY_DIALOGUES, SAGE_DIALOGUES } from '../data/RunTypes';
 
 const { ccclass } = _decorator;
 
-type GamePhase = 'opening' | 'action' | 'result';
+type GamePhase = 'title' | 'opening' | 'action' | 'result' | 'warping';
+
+const PUSH_DISTANCE = HAMSTER_RADIUS * 2; // 推动距离 = 一个老鼠身位
+const DOG_EVENT_MIN_TIME = 20; // 狗叫事件最早触发时间（秒）
+const DOG_EVENT_CHANCE = 0.003; // 每帧触发概率
 
 @ccclass('GameController')
 export class GameController extends Component {
@@ -53,6 +59,8 @@ export class GameController extends Component {
     private stealBarGfx: Graphics | null = null;
     private mapView: MapView | null = null;
     private joystick: VirtualJoystick | null = null;
+    private titleOverlay: TitleOverlay | null = null;
+    private dialogue: DialogueBubble | null = null;
 
     private _map: MapData | null = null;
     private _runtime: GameRuntimeContext | null = null;
@@ -70,6 +78,19 @@ export class GameController extends Component {
     private _levelId = 1;
     private _resultOverlay: GameResultOverlay | null = null;
 
+    // 新功能状态
+    private _ratHoleAppeared = false;
+    private _speedBoost = false; // 滑板车加速
+    private _speedBoostTimer = 0;
+    private _firstFoodEver = true;
+    private _dogEventTimer = 0;
+    private _catHidden = false; // 狗来了猫躲起来
+    private _catHideTimer = 0;
+    private _titleDone = false;
+    private _pushCooldown = 0;
+    private _bowlAttractCooldown = 0;
+    private _lastMoveDir = new Vec2();
+
     async start(): Promise<void> {
         try {
             if (!GameManager.instance?.configReady) {
@@ -78,72 +99,117 @@ export class GameController extends Component {
 
             SaveSystem.load();
 
-        const manager = GameManager.instance;
-        const levelId = manager?.currentLevel ?? 1;
-        this._levelId = levelId;
+            const manager = GameManager.instance;
+            const levelId = manager?.currentLevel ?? 1;
+            this._levelId = levelId;
 
-        // 章节模式：继承剩余生命，应用天赋
-        if (manager?.chapterMode && manager.chapterProgress) {
-            this._lives = manager.chapterProgress.livesRemaining;
-            this._applyTalent(manager.chapterProgress.selectedTalentId);
-        } else {
-            this._lives = this._maxLives;
-        }
+            // 跑酷模式：继承剩余生命，应用天赋
+            const isRunMode = manager?.runMode === true;
+            const isTutorial = manager?.runProgress?.tutorialMode === true;
+            const progress = manager?.runProgress;
 
-        this._phase = 'opening';
-        this._openingTimer = 0;
-        this._countdown = -1;
-        const level = GameConfig.getLevel(levelId) ?? GameConfig.levels[0];
-
-        await ArtCatalog.load();
-        await this.ensureSceneGraph();
-
-        const prefabRoom = await loadRoomForLevel(levelId, this.worldRoot!);
-        console.log('[Game] loadRoomForLevel result:', prefabRoom ? 'OK' : 'NULL');
-        if (prefabRoom) {
-            this._map = prefabRoom.map;
-            this.mapView = prefabRoom.mapView;
-            console.log('[Game] 房间加载成功, 家具数:', this._map.furniture.length);
-        } else {
-            console.error('[Game] 未能加载 Room1Edit 房间，请检查控制台 [Room] 报错');
-            if (this.hudLabel) {
-                this.hudLabel.string = '房间加载失败 · 请看控制台';
+            if (isRunMode && progress) {
+                this._lives = progress.livesRemaining;
+                this._maxLives = progress.selectedTalentId === 'extra_life' ? 4 : 3;
+            } else {
+                this._lives = this._maxLives;
             }
-            this._map = generateMapFromJson(levelId);
-            this.mapView = MapView.createOnWorld(this.worldRoot!);
-            await this.mapView.build(this._map);
-            console.log('[Game] 回退房间生成, 家具数:', this._map.furniture.length);
-        }
-        await this.setupActors(this._map);
 
-        const catCtrl = this.catNode!.getComponent(CatController)!;
-        const hamsterSpawn = createHamsterSpawn(this._map);
-        this._runtime = {
-            time: 0,
-            levelId,
-            mapW: this._map.mapW,
-            mapH: this._map.mapH,
-            hamster: {
-                x: hamsterSpawn.x,
-                y: hamsterSpawn.y,
-                r: hamsterSpawn.r,
-                speed: hamsterSpawn.speed,
-                invincible: 0,
-                visible: true,
-            },
-            cat: catCtrl.catState!,
-            foodStolen: false,
-            catHits: 0,
-            sageHint: null,
-            placedTraps: [],
-            onCatCatch: () => this.onCatCatch(),
-        };
+            this._phase = isRunMode && !isTutorial ? 'title' : 'opening';
+            this._openingTimer = 0;
+            this._countdown = -1;
+            this._ratHoleAppeared = false;
+            this._foodCollected = 0;
+            this._firstFoodEver = SaveSystem.data.tutorialStep === 0;
+            this._dogEventTimer = 0;
+            this._catHidden = false;
+            this._speedBoost = false;
+            this._pushCooldown = 0;
+            this._bowlAttractCooldown = 0;
 
-        if (this.hudLabel) {
-            this.hudLabel.string = `第${level.id}关 ${level.name} · 靠近食物按住偷取 · 带回鼠洞`;
-        }
-        this.ensureResultOverlay();
-        this.updateStatusLabel();
+            // 判断是否显示标题：正式跑酷且不是刚传送的（传送时不重复播标题）
+            const shouldShowTitle = isRunMode && !isTutorial && !manager?.consumeWarpFlag();
+            this._titleDone = !shouldShowTitle;
+
+            const level = GameConfig.getLevel(levelId) ?? GameConfig.levels[0];
+
+            await ArtCatalog.load();
+            await this.ensureSceneGraph();
+
+            // 正式跑酷模式：鼠洞初始不可见（收集完食物才出现）
+            const ratHoleVisible = !(isRunMode && !isTutorial);
+            const prefabRoom = await loadRoomForLevel(levelId, this.worldRoot!, { ratHoleVisible });
+            console.log('[Game] loadRoomForLevel result:', prefabRoom ? 'OK' : 'NULL');
+            if (prefabRoom) {
+                this._map = prefabRoom.map;
+                this.mapView = prefabRoom.mapView;
+                console.log('[Game] 房间加载成功, 家具数:', this._map.furniture.length, '可推:', this._map.furniture.filter(f => f.pushable).length);
+            } else {
+                console.error('[Game] 未能加载 Room 预制体，回退生成地图');
+                this._map = generateMapFromJson(levelId, { ratHoleVisible });
+                this.mapView = MapView.createOnWorld(this.worldRoot!);
+                await this.mapView.build(this._map);
+                console.log('[Game] 回退房间生成, 家具数:', this._map.furniture.length);
+            }
+            await this.setupActors(this._map);
+
+            const catCtrl = this.catNode!.getComponent(CatController)!;
+            const hamsterSpawn = createHamsterSpawn(this._map);
+            this._runtime = {
+                time: 0,
+                levelId,
+                mapW: this._map.mapW,
+                mapH: this._map.mapH,
+                hamster: {
+                    x: hamsterSpawn.x,
+                    y: hamsterSpawn.y,
+                    r: hamsterSpawn.r,
+                    speed: hamsterSpawn.speed,
+                    invincible: 2, // 开局2秒无敌保护
+                    visible: true,
+                },
+                cat: catCtrl.catState!,
+                foodStolen: false,
+                catHits: 0,
+                sageHint: null,
+                placedTraps: [],
+                onCatCatch: () => this.onCatCatch(),
+            };
+
+            if (this.hudLabel) {
+                if (isTutorial) {
+                    this.hudLabel.string = `新手引导 · 靠近食物按住偷取 · 带回鼠洞`;
+                } else if (isRunMode && progress) {
+                    const roomNum = progress.currentRoomIndex + 1;
+                    const total = progress.roomSequence.length;
+                    this.hudLabel.string = `房间 ${roomNum}/${total} · 偷取食物回鼠洞`;
+                } else {
+                    this.hudLabel.string = `第${level.id}关 ${level.name} · 靠近食物按住偷取 · 带回鼠洞`;
+                }
+            }
+            this.ensureResultOverlay();
+            this.updateStatusLabel();
+
+            // 播放标题"飞奔的奶酪"
+            if (this._phase === 'title' && this.titleOverlay) {
+                this.joystick?.isInputBlocked(true);
+                this.titleOverlay.show('飞奔的奶酪', '', () => {
+                    this._titleDone = true;
+                    this._phase = 'opening';
+                    this._openingTimer = 0;
+                    this.joystick?.isInputBlocked(false);
+                    this.triggerEntryDialogue();
+                });
+            } else {
+                this.triggerEntryDialogue();
+            }
+
+            // 传送后触发仙人时光回溯台词
+            if (manager?.shouldShowWarpDialogue()) {
+                this.scheduleOnce(() => {
+                    this.dialogue?.showImmediate('sage', SAGE_DIALOGUES.warpHappened, 5);
+                }, 1.5);
+            }
         } catch (err) {
             console.error('[GameController] 启动失败', err);
             if (this.hintLabel) {
@@ -155,29 +221,107 @@ export class GameController extends Component {
         }
     }
 
+    /** 进入房间时的随机对话（鼠猫扯皮） */
+    private triggerEntryDialogue(): void {
+        const manager = GameManager.instance;
+        if (!manager?.runMode) return;
+
+        // 引导第1关首次进入显示仙人引导
+        if (manager.runProgress?.tutorialMode && manager.runProgress.currentRoomIndex === 0 && SaveSystem.data.tutorialStep === 0) {
+            this.scheduleOnce(() => {
+                this.dialogue?.showImmediate('sage', SAGE_DIALOGUES.firstEnter, 4);
+            }, 0.5);
+            return;
+        }
+
+        // 正式跑酷或非首关，随机播放鼠猫对话
+        if (!manager.runProgress?.tutorialMode || manager.runProgress.currentRoomIndex > 0) {
+            const d = ENTRY_DIALOGUES[Math.floor(Math.random() * ENTRY_DIALOGUES.length)];
+            this.scheduleOnce(() => {
+                this.dialogue?.show(d.speaker, d.text, 3);
+            }, 1.0);
+        }
+
+        // 传送进入的引导提示
+        if (manager.runProgress?.tutorialMode && manager.runProgress.currentRoomIndex === 1) {
+            this.scheduleOnce(() => {
+                this.dialogue?.show('sage', SAGE_DIALOGUES.tutorialRoom2, 4);
+            }, 4.5);
+        }
+    }
+
     update(dt: number): void {
         if (!this._map || !this._runtime || !this.hamsterNode) return;
 
-        if (this._phase === 'result') return;
+        if (this._phase === 'result' || this._phase === 'warping') return;
+
+        // 标题阶段只更新effects
+        if (this._phase === 'title') {
+            this.mapView?.updateEffects(dt);
+            return;
+        }
 
         if (this._phase === 'opening') {
             this.updateOpening(dt);
+            this.mapView?.updateEffects(dt);
             return;
         }
 
         this._runtime.time += dt;
+        this._dogEventTimer += dt;
+        if (this._pushCooldown > 0) this._pushCooldown -= dt;
+        if (this._bowlAttractCooldown > 0) this._bowlAttractCooldown -= dt;
 
-        const blocked = !!(this._runtime.sageHint && this._runtime.sageHint.timer > 0);
+        // 滑板车计时
+        if (this._speedBoost) {
+            this._speedBoostTimer -= dt;
+            if (this._speedBoostTimer <= 0) {
+                this._speedBoost = false;
+                this.dialogue?.show('system', '滑板车消失了', 2);
+            }
+        }
+
+        // 猫躲藏计时（狗来了事件）
+        if (this._catHidden) {
+            this._catHideTimer -= dt;
+            if (this._catHideTimer <= 0) {
+                this._catHidden = false;
+                // 猫恢复
+                const catCtrl = this.catNode?.getComponent(CatController);
+                if (catCtrl) {
+                    catCtrl.node.active = true;
+                }
+            }
+        }
+
+        // 随机狗叫事件
+        if (!this._catHidden && this._dogEventTimer > DOG_EVENT_MIN_TIME && Math.random() < DOG_EVENT_CHANCE) {
+            this.triggerDogEvent();
+        }
+
+        const hint = this._runtime.sageHint;
+        const blocked = !!(hint && hint.timer > 0) || this._catHidden;
         this.joystick?.isInputBlocked(blocked);
 
         const hamster = this.hamsterNode.getComponent(HamsterController)!;
-        hamster.speed = GameConfig.difficulty.hamsterBaseSpeed * 60;
+
+        // 速度计算：基础速度 * 天赋 * 滑板车
+        let speedMult = 1.0;
+        if (this._speedBoost) speedMult *= 1.3;
+        const talentId = GameManager.instance?.runProgress?.selectedTalentId;
+        if (talentId === 'speed_boost') speedMult *= 1.25;
+
+        hamster.speed = GameConfig.difficulty.hamsterBaseSpeed * 60 * speedMult;
         hamster.inputEnabled = !blocked && this._runtime.hamster.invincible <= 0;
 
+        let moveX = 0, moveY = 0;
         if (this.joystick) {
             this.joystick.getDirection(this._joyDir);
             hamster.setJoystickDirection(this._joyDir.x, this._joyDir.y);
         }
+
+        const prevX = this._runtime.hamster.x;
+        const prevY = this._runtime.hamster.y;
 
         if (hamster.getMoveDirection(this._moveDir)) {
             const step = hamster.speed * dt;
@@ -187,10 +331,17 @@ export class GameController extends Component {
                 pos.y + this._moveDir.y * step,
                 pos.z,
             );
+            // 记录移动方向用于推家具
+            if (Math.abs(this._moveDir.x) > 0.1 || Math.abs(this._moveDir.y) > 0.1) {
+                this._lastMoveDir.set(this._moveDir.x, this._moveDir.y);
+            }
         }
 
         this.syncHamsterHtmlFromNode();
         this.resolveHamsterCollision();
+        this.tryPushFurniture(prevX, prevY);
+        this.checkFoodBowlCollision();
+        this.checkSkateboardPickup();
         this.syncHamsterNodeFromHtml();
         this.updateFoodSteal(dt);
         this.mapView?.updateStealRing(
@@ -198,9 +349,8 @@ export class GameController extends Component {
             this._stealProgress,
             this._stealing && this._stealTargetIdx >= 0,
         );
-        this.checkWinAtRatHole();
+        this.checkRatHole();
 
-        const hint = this._runtime.sageHint;
         if (hint) {
             hint.timer -= dt;
             if (hint.timer <= 0) {
@@ -213,11 +363,12 @@ export class GameController extends Component {
 
         this.updateStatusLabel();
         this.updateStealBar();
+        this.mapView?.updateEffects(dt);
     }
 
     lateUpdate(dt: number): void {
         if (!this._map || !this._runtime || !this.hamsterNode || !this.catNode) return;
-        if (this._phase === 'result') return;
+        if (this._phase === 'result' || this._phase === 'warping' || this._phase === 'title') return;
 
         if (this._phase === 'opening') {
             this.updateOpeningCameraZoom();
@@ -232,11 +383,14 @@ export class GameController extends Component {
             this._runtime.hamster.invincible -= dt;
         }
 
-        const catCtrl = this.catNode.getComponent(CatController);
-        if (catCtrl?.catState) {
-            this._runtime.cat = catCtrl.catState;
-            updateCat(this._runtime, this._map, dt);
-            catCtrl.syncFromState(this._map.mapW, this._map.mapH);
+        // 狗来了，猫不更新（躲起来了）
+        if (!this._catHidden) {
+            const catCtrl = this.catNode.getComponent(CatController);
+            if (catCtrl?.catState) {
+                this._runtime.cat = catCtrl.catState;
+                updateCat(this._runtime, this._map, dt);
+                catCtrl.syncFromState(this._map.mapW, this._map.mapH);
+            }
         }
 
         this.updateCameraZoom();
@@ -247,9 +401,183 @@ export class GameController extends Component {
         }
     }
 
+    /** 狗来了随机事件 */
+    private triggerDogEvent(): void {
+        this._dogEventTimer = 0;
+        this._catHidden = true;
+        this._catHideTimer = 5;
+        const catCtrl = this.catNode?.getComponent(CatController);
+        if (catCtrl) {
+            catCtrl.node.active = false;
+        }
+        this.dialogue?.showImmediate('system', '🐕 汪！汪！外面有狗叫！猫吓得躲起来了，快去偷食物！', 3);
+    }
+
+    /** 检测滑板车拾取 */
+    private checkSkateboardPickup(): void {
+        if (this._speedBoost) return;
+        const map = this._map!;
+        const h = this._runtime!.hamster;
+        for (const pw of map.powerups) {
+            if (pw.collected) continue;
+            if (dist(h, pw) < h.r + 20) {
+                pw.collected = true;
+                this._speedBoost = true;
+                this._speedBoostTimer = 8;
+                this.dialogue?.show('system', '🛹 捡到滑板车！加速！', 2.5);
+                // 隐藏道具
+                const propRoot = this.mapView?.propRoot;
+                const pwNode = propRoot?.getChildByName('Powerup_toycar');
+                if (pwNode) pwNode.active = false;
+                break;
+            }
+        }
+    }
+
+    /** 检测猫粮碗碰撞（撞碗吸引猫） */
+    private checkFoodBowlCollision(): void {
+        if (this._bowlAttractCooldown > 0) return;
+        const map = this._map!;
+        const h = this._runtime!.hamster;
+        for (const bowl of map.foodBowls) {
+            if (dist(h, bowl) < h.r + bowl.r) {
+                this._bowlAttractCooldown = 15;
+                // 让猫向碗位置移动（通过设置cat目标）
+                const catCtrl = this.catNode?.getComponent(CatController);
+                if (catCtrl?.catState) {
+                    catCtrl.catState.state = 'chase';
+                    catCtrl.catState.targetX = bowl.x;
+                    catCtrl.catState.targetY = bowl.y;
+                    catCtrl.catState.stateTimer = 5;
+                }
+                this.dialogue?.show('system', '🥣 撞翻了猫粮碗！猫被吸引过去了！', 2.5);
+                break;
+            }
+        }
+    }
+
+    /** 尝试推动可推家具（像推箱子一样，沿移动方向推） */
+    private tryPushFurniture(prevX: number, prevY: number): void {
+        if (this._pushCooldown > 0) return;
+        const map = this._map!;
+        const h = this._runtime!.hamster;
+        const r = h.r;
+
+        // 根据移动方向确定推动主轴
+        const mvx = this._lastMoveDir.x;
+        const mvy = this._lastMoveDir.y;
+        const absX = Math.abs(mvx);
+        const absY = Math.abs(mvy);
+
+        // 没有有效移动方向，不推
+        if (absX < 0.1 && absY < 0.1) return;
+
+        let pushDir: 'left' | 'right' | 'up' | 'down';
+        if (absX > absY) {
+            // X轴方向推
+            pushDir = mvx > 0 ? 'right' : 'left';
+        } else {
+            // Y轴方向推（html坐标Y向下，cocos向上，这里用html坐标思考）
+            // mvy在cocos中：+y=向上（html中y减小），-y=向下（html中y增大）
+            pushDir = mvy > 0 ? 'up' : 'down';
+        }
+
+        for (let i = 0; i < map.furniture.length; i += 1) {
+            const f = map.furniture[i];
+            if (!f.pushable) continue;
+
+            // 检测玩家与家具是否接触（圆-矩形碰撞）
+            const closestX = Math.max(f.x, Math.min(h.x, f.x + f.w));
+            const closestY = Math.max(f.y, Math.min(h.y, f.y + f.h));
+            const dx = h.x - closestX;
+            const dy = h.y - closestY;
+            const d = Math.hypot(dx, dy);
+
+            if (d >= r - 2) continue; // 没有接触
+
+            // 检查玩家是否在家具的正确方向一侧
+            let pushX = 0, pushY = 0;
+            const cx = f.x + f.w / 2;
+            const cy = f.y + f.h / 2;
+
+            // 判断推动方向并验证玩家位置
+            switch (pushDir) {
+                case 'right':
+                    // 玩家要向右推，必须在家具左边
+                    if (h.x > cx + f.w / 2 - r) continue; // 玩家在家具右边，不能右推
+                    pushX = PUSH_DISTANCE;
+                    break;
+                case 'left':
+                    if (h.x < cx - f.w / 2 + r) continue; // 玩家在家具左边，不能左推
+                    pushX = -PUSH_DISTANCE;
+                    break;
+                case 'down':
+                    // 向下推（html中y增大），玩家必须在家具上方（h.y < cy）
+                    if (h.y > cy + f.h / 2 - r) continue;
+                    pushY = PUSH_DISTANCE;
+                    break;
+                case 'up':
+                    // 向上推（html中y减小），玩家必须在家具下方（h.y > cy）
+                    if (h.y < cy - f.h / 2 + r) continue;
+                    pushY = -PUSH_DISTANCE;
+                    break;
+            }
+
+            const newX = f.x + pushX;
+            const newY = f.y + pushY;
+
+            // 检查推动后是否会与墙壁/其他家具/猫碗重叠
+            if (this.canPlaceFurniture(newX, newY, f.w, f.h, f)) {
+                f.x = newX;
+                f.y = newY;
+                this._pushCooldown = 0.25;
+                // 更新视觉位置（增量移动）
+                this.mapView?.moveFurnitureBy(i, pushX, pushY);
+                // 玩家也跟着家具移动一点，避免被家具卡进去
+                // 把玩家位置同步到家具边缘外
+                if (pushX > 0) {
+                    h.x = newX - r - 1;
+                } else if (pushX < 0) {
+                    h.x = newX + f.w + r + 1;
+                } else if (pushY > 0) {
+                    h.y = newY - r - 1;
+                } else if (pushY < 0) {
+                    h.y = newY + f.h + r + 1;
+                }
+            }
+            break; // 一次只推一个
+        }
+    }
+
+    /** 检查家具放置位置是否合法（不与墙和其他非pushable家具重叠） */
+    private canPlaceFurniture(x: number, y: number, w: number, h: number, exclude: FurnitureItem): boolean {
+        const map = this._map!;
+        const margin = 15;
+        // 边界检查
+        if (x < margin || y < margin || x + w > map.mapW - margin || y + h > map.mapH - margin - 20) {
+            return false;
+        }
+        // 与墙壁碰撞检查
+        const walls = getCollidableRects(map);
+        for (const wall of walls) {
+            if (x + w <= wall.x || x >= wall.x + wall.w || y + h <= wall.y || y >= wall.y + wall.h) continue;
+            return false;
+        }
+        // 与其他家具碰撞检查
+        for (const f of map.furniture) {
+            if (f === exclude) continue;
+            if (x + w <= f.x + 2 || x >= f.x + f.w - 2 || y + h <= f.y + 2 || y >= f.y + f.h - 2) continue;
+            return false;
+        }
+        return true;
+    }
+
     private updateFoodSteal(dt: number): void {
         const map = this._map!;
         const h = this._runtime!.hamster;
+
+        // 天赋：灵巧爪子偷取速度+40%
+        const stealSpeedMult = GameManager.instance?.runProgress?.selectedTalentId === 'steal_fast' ? 1.4 : 1.0;
 
         if (!this._stealing) {
             for (let i = 0; i < map.foods.length; i += 1) {
@@ -268,7 +596,7 @@ export class GameController extends Component {
         if (this._stealing && this._stealTargetIdx >= 0) {
             const food = map.foods[this._stealTargetIdx];
             if (food && dist(h, food) < h.r + 22) {
-                this._stealProgress += dt * 1.2;
+                this._stealProgress += dt * 1.2 * stealSpeedMult;
                 if (this._stealProgress >= 1) {
                     food.collected = true;
                     food.stealing = false;
@@ -277,8 +605,20 @@ export class GameController extends Component {
                     this._stealProgress = 0;
                     this.mapView?.hideFood(this._stealTargetIdx);
                     onFoodStolen(this._runtime!);
-                    this._runtime!.sageHint = { text: `偷到${food.type.name}！快回鼠洞！`, timer: 3.0 };
+
+                    // 首次偷到食物，仙人引导
+                    if (this._firstFoodEver) {
+                        this._firstFoodEver = false;
+                        this._runtime!.sageHint = { text: SAGE_DIALOGUES.firstSteal, timer: 3.5 };
+                    } else {
+                        this._runtime!.sageHint = { text: `偷到${food.type.name}！`, timer: 2.0 };
+                    }
                     this._stealTargetIdx = -1;
+
+                    // 检查是否收集完所有食物 → 鼠洞出现
+                    if (this._foodCollected >= map.foodTarget && !this._ratHoleAppeared && !map.ratHoleVisible) {
+                        this.appearRatHole();
+                    }
                 }
             } else {
                 if (food) food.stealing = false;
@@ -289,42 +629,78 @@ export class GameController extends Component {
         }
     }
 
-    private checkWinAtRatHole(): void {
+    /** 所有食物收集完毕，鼠洞出现 */
+    private appearRatHole(): void {
+        const map = this._map!;
+        this._ratHoleAppeared = true;
+
+        // 随机生成鼠洞位置（不与障碍物重叠）
+        const newHole = randomizeRatHolePosition(map);
+        map.ratHole = newHole;
+
+        // 判断是否是最后一个房间（金色鼠洞）
+        const manager = GameManager.instance;
+        const isFinal = manager?.isFinalRoom() ?? true;
+        map.ratHoleIsExit = isFinal;
+        map.ratHoleVisible = true;
+
+        // 渲染鼠洞
+        this.mapView?.showRatHoleAt(newHole, isFinal, map.mapW, map.mapH);
+
+        if (isFinal) {
+            this.dialogue?.showImmediate('sage', SAGE_DIALOGUES.goldenHole, 4);
+        } else {
+            this.dialogue?.showImmediate('system', SAGE_DIALOGUES.foodComplete, 3);
+        }
+    }
+
+    /** 检测到达鼠洞 */
+    private checkRatHole(): void {
         const map = this._map!;
         const h = this._runtime!.hamster;
         if (h.invincible > 0) return;
+        if (!map.ratHoleVisible) return; // 鼠洞还没出现
 
         const holeDist = dist(h, map.ratHole);
         if (holeDist >= h.r + map.ratHole.r) return;
 
         if (this._foodCollected <= 0) {
-            this._runtime!.sageHint = { text: '还没拿到食物呢，再去找找~', timer: 2.5 };
+            this._runtime!.sageHint = { text: SAGE_DIALOGUES.notEnoughFood, timer: 2.0 };
             return;
         }
         if (this._foodCollected < map.foodTarget) {
             this._runtime!.sageHint = {
-                text: `还要 ${map.foodTarget - this._foodCollected} 份食物才能过关~`,
-                timer: 2.5,
+                text: `还要 ${map.foodTarget - this._foodCollected} 份食物~`,
+                timer: 2.0,
             };
             return;
         }
 
-        // 章节模式：房间完成，通知 GameManager
+        // 食物已收集完，到达鼠洞 → 通知GameManager
         const manager = GameManager.instance;
-        if (manager?.chapterMode) {
-            const hasNext = manager.onRoomComplete({
-                won: true,
-                foodCollected: this._foodCollected,
-                livesRemaining: this._lives,
-                isLastRoom: false,
-            });
-            if (!hasNext) {
-                this.endGame(true);
-            }
+        if (!manager?.runMode) {
+            this.endGame(true);
             return;
         }
 
-        this.endGame(true);
+        this._phase = 'warping';
+        this.joystick?.isInputBlocked(true);
+
+        // 播传送效果
+        if (this.titleOverlay) {
+            this.titleOverlay.showWarpEffect(() => {
+                const result = manager.onReachRatHole(this._foodCollected, this._lives);
+                if (result === 'complete') {
+                    this.endGame(true);
+                }
+                // warp/tutorial_next: GameManager 已经加载了新场景，不需要处理
+            });
+        } else {
+            const result = manager.onReachRatHole(this._foodCollected, this._lives);
+            if (result === 'complete') {
+                this.endGame(true);
+            }
+        }
     }
 
     private endGame(won: boolean): void {
@@ -338,36 +714,40 @@ export class GameController extends Component {
         this.worldFollow?.clearFixedFocus();
 
         const manager = GameManager.instance;
-        const levelId = this._levelId;
-        const foodTarget = this._map?.foodTarget ?? 0;
 
-        // 章节模式：最后一个房间的胜利/失败结算
-        if (manager?.chapterMode && manager.chapterConfig) {
-            const chapter = manager.chapterConfig;
-            const progress = manager.chapterProgress;
-            if (won) {
-                const coins = chapter.rewardCoins + (progress?.totalFoodCollected ?? 0) * 10;
-                if (this.hudLabel) {
-                    this.hudLabel.string = `${chapter.name} 通关！获得 ${coins} 金币`;
-                }
+        // 读取结算结果
+        const runResult = manager?.runResult;
+        const isRunMode = manager?.runMode === true;
+
+        if (isRunMode && runResult) {
+            const { won: runWon, coins, totalFood } = runResult;
+            if (runWon) {
                 this._resultOverlay?.showWin(
-                    '章节通关！',
-                    `偷取食物 ${progress?.totalFoodCollected ?? 0} 份 · 获得 ${coins} 金币`,
+                    '跑酷成功！回家了！',
+                    `偷取食物 ${totalFood} 份 · 获得 ${coins} 金币`,
                     {
                         onNext: () => manager.goMenu(),
-                        onRetry: () => manager.startChapter(chapter.id),
+                        onRetry: () => {
+                            manager.clearRunState?.();
+                            manager.startRun(manager.runProgress?.selectedTalentId ?? undefined);
+                        },
                         onMenu: () => manager.goMenu(),
                     },
                 );
             } else {
-                if (this.hudLabel) {
-                    this.hudLabel.string = '失败 · 生命耗尽';
-                }
                 this._resultOverlay?.showLose(
-                    '章节失败',
-                    '被猫抓住太多次了，再试一次吧',
+                    '被抓住了...',
+                    `偷了 ${totalFood} 份食物 · 安慰奖 ${coins} 金币`,
                     {
-                        onRetry: () => manager.startChapter(chapter.id),
+                        onRetry: () => {
+                            manager.clearRunState?.();
+                            const save = SaveSystem.data;
+                            if (save.tutorialStep < 2) {
+                                manager.startTutorial1();
+                            } else {
+                                manager.startRun(undefined);
+                            }
+                        },
                         onMenu: () => manager.goMenu(),
                     },
                 );
@@ -375,15 +755,14 @@ export class GameController extends Component {
             return;
         }
 
-        // 普通关卡模式
+        // 非跑酷模式（普通关卡/旧逻辑）
+        const levelId = this._levelId;
+        const foodTarget = this._map?.foodTarget ?? 0;
         if (won) {
             const stars = this._lives;
             SaveSystem.updateStars(levelId, stars);
             if (this._foodCollected >= foodTarget) {
                 SaveSystem.unlockLevel(levelId + 1);
-            }
-            if (this.hudLabel) {
-                this.hudLabel.string = `通关！${stars} 星 · 带回 ${this._foodCollected}/${foodTarget}`;
             }
             this._resultOverlay?.showWin(
                 '胜利！',
@@ -402,9 +781,6 @@ export class GameController extends Component {
                 },
             );
         } else {
-            if (this.hudLabel) {
-                this.hudLabel.string = '失败 · 生命耗尽';
-            }
             this._resultOverlay?.showLose(
                 '失败',
                 '被猫抓住太多次了，再试一次吧',
@@ -420,6 +796,7 @@ export class GameController extends Component {
         this._openingTimer += dt;
         const map = this._map!;
         const isL1 = map.levelId === 1;
+        const isTutorial = GameManager.instance?.runProgress?.tutorialMode === true;
         const t = this._openingTimer;
 
         this.joystick?.isInputBlocked(true);
@@ -431,7 +808,9 @@ export class GameController extends Component {
         let focusY = map.mapH / 2;
         let zoom = isL1 ? 0.75 : calcMapFillZoom(map.mapH) * 0.85;
 
-        if (isL1) {
+        // 只有引导关才播长开场，正式跑酷房间只做短倒计时
+        if (isTutorial && isL1 && SaveSystem.data.tutorialStep === 0) {
+            // 完整新手引导开场
             if (t < 3) {
                 text = '徒儿，这是厨房，你的冒险开始咯~';
             } else if (t < 5 && map.foods.length > 0) {
@@ -447,76 +826,40 @@ export class GameController extends Component {
                 zoom = 1.0;
                 text = '那只胖猫在睡觉💤...莫去惹它哈！';
             } else if (t < 9.5) {
-                const gap = map.narrowGaps.find((g) => g.type === 'mouse');
-                if (gap) {
-                    focusX = gap.x + gap.w / 2;
-                    focusY = gap.y + gap.h / 2;
-                    zoom = 1.3;
-                    text = '左边那条窄道只有你钻得过去，胖猫进不来！';
-                } else {
-                    focusX = map.ratHole.x;
-                    focusY = map.ratHole.y;
-                    zoom = 0.8;
-                }
-            } else if (t < 13.5) {
                 focusX = map.ratHole.x;
                 focusY = map.ratHole.y;
                 zoom = 0.8;
-                text = '接下来就看你这个瓜娃子的了！';
-            } else if (t < 14.5) {
+                text = '偷到食物后回鼠洞！';
+            } else if (t < 12) {
+                focusX = map.ratHole.x;
+                focusY = map.ratHole.y;
+                zoom = 0.8;
+                text = '接下来就看你了！';
+            } else if (t < 13) {
                 this._countdown = 3;
-                focusX = this._runtime!.hamster.x;
-                focusY = this._runtime!.hamster.y;
-                zoom = 1.2;
                 text = '';
-            } else if (t < 15.5) {
+            } else if (t < 14) {
                 this._countdown = 2;
-                focusX = this._runtime!.hamster.x;
-                focusY = this._runtime!.hamster.y;
-                zoom = 1.2;
-            } else if (t < 16.5) {
+            } else if (t < 15) {
                 this._countdown = 1;
-                focusX = this._runtime!.hamster.x;
-                focusY = this._runtime!.hamster.y;
-                zoom = 1.2;
-            } else if (t < 17) {
+            } else if (t < 15.5) {
                 this._countdown = 0;
-                focusX = this._runtime!.hamster.x;
-                focusY = this._runtime!.hamster.y;
-                zoom = 1.2;
             } else {
                 this.startActionPhase();
                 return;
             }
         } else {
-            if (t < 2) {
-                text = `第 ${map.levelId} 关 · 偷食物回鼠洞`;
-            } else if (t < 4 && map.foods.length) {
-                const food = map.foods[0];
-                focusX = food.x;
-                focusY = food.y;
-                zoom = calcMapFillZoom(map.mapH);
-            } else if (t < 6) {
-                focusX = this._runtime!.cat.x;
-                focusY = this._runtime!.cat.y;
-                zoom = calcMapFillZoom(map.mapH);
-            } else if (t < 7) {
+            // 短开场（非首关/正式跑酷）
+            if (t < 1.5) {
+                text = isTutorial ? '继续加油！' : '准备...';
+            } else if (t < 2.5) {
                 this._countdown = 3;
-                focusX = this._runtime!.hamster.x;
-                focusY = this._runtime!.hamster.y;
-                zoom = map.levelId === 1 ? L1_CAMERA_ZOOM : calcMapFillZoom(map.mapH);
-            } else if (t < 8) {
+            } else if (t < 3.5) {
                 this._countdown = 2;
-                focusX = this._runtime!.hamster.x;
-                focusY = this._runtime!.hamster.y;
-            } else if (t < 9) {
+            } else if (t < 4.5) {
                 this._countdown = 1;
-                focusX = this._runtime!.hamster.x;
-                focusY = this._runtime!.hamster.y;
-            } else if (t < 9.5) {
+            } else if (t < 5) {
                 this._countdown = 0;
-                focusX = this._runtime!.hamster.x;
-                focusY = this._runtime!.hamster.y;
             } else {
                 this.startActionPhase();
                 return;
@@ -619,13 +962,26 @@ export class GameController extends Component {
         const stealText = this._stealing
             ? ` · 偷取 ${Math.floor(this._stealProgress * 100)}%`
             : '';
+        const speedText = this._speedBoost ? ' · 🛹' : '';
+        const manager = GameManager.instance;
+        let roomInfo = '';
+        if (manager?.runMode && manager.runProgress) {
+            const p = manager.runProgress;
+            roomInfo = ` · 房间${p.currentRoomIndex + 1}/${p.roomSequence.length}`;
+        }
         this.statusLabel.string =
-            `${hearts} · 食物 ${this._foodCollected}/${this._map?.foodTarget ?? 0}${stealText} · 猫:${c.state} · 警戒 ${Math.floor(c.alertValue)}%`;
+            `${hearts} · ${this._foodCollected}/${this._map?.foodTarget ?? 0}${stealText}${speedText}${roomInfo}`;
     }
 
     private onCatCatch(): void {
         if (!this._map || !this._runtime || this._phase !== 'action') return;
         if (this._runtime.hamster.invincible > 0) return;
+
+        // 撞到猫时滑板车消失
+        if (this._speedBoost) {
+            this._speedBoost = false;
+            this._speedBoostTimer = 0;
+        }
 
         if (this._foodCollected > 0) {
             this._foodCollected -= 1;
@@ -636,21 +992,19 @@ export class GameController extends Component {
         const catCtrl = this.catNode?.getComponent(CatController);
         catCtrl?.syncFromState(this._map.mapW, this._map.mapH);
 
+        const manager = GameManager.instance;
         const msg = this._lives > 0
-            ? `被猫抓住了！还剩 ${this._lives} 条命`
+            ? (manager?.runProgress?.tutorialMode && this._lives === 1
+                ? SAGE_DIALOGUES.oneLifeLeft
+                : `被猫抓住了！还剩 ${this._lives} 条命`)
             : '生命耗尽...';
         this._runtime.sageHint = { text: msg, timer: 3.0 };
 
         if (this._lives <= 0) {
-            const manager = GameManager.instance;
-            if (manager?.chapterMode) {
-                const hasNext = manager.onRoomFail();
-                if (!hasNext) {
-                    this.scheduleOnce(() => this.endGame(false), 0.8);
-                }
-            } else {
-                this.scheduleOnce(() => this.endGame(false), 0.8);
-            }
+            this._phase = 'warping';
+            this.joystick?.isInputBlocked(true);
+            manager?.onRunFailed(this._foodCollected);
+            this.scheduleOnce(() => this.endGame(false), 1.0);
         }
     }
 
@@ -701,6 +1055,22 @@ export class GameController extends Component {
         this.uiRoot.layer = GAME_LAYER;
         this.uiRoot.setSiblingIndex(100);
 
+        // 标题覆盖层
+        let titleNode = this.uiRoot.getChildByName('TitleOverlay');
+        if (!titleNode) {
+            titleNode = new Node('TitleOverlay');
+            this.uiRoot.addChild(titleNode);
+        }
+        this.titleOverlay = titleNode.getComponent(TitleOverlay) ?? titleNode.addComponent(TitleOverlay);
+
+        // 对话气泡
+        let dlgNode = this.uiRoot.getChildByName('DialogueBubble');
+        if (!dlgNode) {
+            dlgNode = new Node('DialogueBubble');
+            this.uiRoot.addChild(dlgNode);
+        }
+        this.dialogue = dlgNode.getComponent(DialogueBubble) ?? dlgNode.addComponent(DialogueBubble);
+
         const oldCam = canvas.scene.getChildByName('GameCamera');
         if (oldCam) oldCam.destroy();
 
@@ -748,7 +1118,6 @@ export class GameController extends Component {
         this.createStealBar();
     }
 
-    /** 底部引导对话框 + 仙人立绘（对照浏览器 drawOpeningUI） */
     private createGuideLabel(): void {
         const root = this.uiRoot ?? this.node;
         let node = root.getChildByName('HintLabel');
@@ -801,7 +1170,6 @@ export class GameController extends Component {
         node!.setPosition(0, -DESIGN_HEIGHT / 2 + 150, 0);
     }
 
-    /** 右上角警觉条（对照浏览器 HUD） */
     private createAlertBar(): void {
         const root = this.uiRoot ?? this.node;
         let node = root.getChildByName('AlertBar');
@@ -821,7 +1189,7 @@ export class GameController extends Component {
     private updateAlertBar(): void {
         const gfx = this.alertBarGfx;
         const c = this._runtime?.cat;
-        if (!gfx || !c || this._phase !== 'action') {
+        if (!gfx || !c || this._phase !== 'action' || this._catHidden) {
             gfx?.clear();
             return;
         }
@@ -843,7 +1211,6 @@ export class GameController extends Component {
         }
     }
 
-    /** 屏幕中央偷取进度条 */
     private createStealBar(): void {
         const root = this.uiRoot ?? this.node;
         let node = root.getChildByName('StealBar');
@@ -946,11 +1313,10 @@ export class GameController extends Component {
             }
             const hc = this.hamsterNode.getComponent(HamsterController) ?? this.hamsterNode.addComponent(HamsterController);
             hc.radius = hamster.r;
-            let speedMult = 1.3;
-            const manager = GameManager.instance;
-            if (manager?.chapterMode && manager.chapterProgress?.selectedTalentId === 'speed_boost') {
-                speedMult *= 1.2;
-                console.log('[Game] 天赋风火轮生效，速度 +20%');
+            let speedMult = 1.3; // 基础30%加速
+            const talentId = GameManager.instance?.runProgress?.selectedTalentId;
+            if (talentId === 'speed_boost') {
+                speedMult *= 1.25;
             }
             hc.speed = GameConfig.difficulty.hamsterBaseSpeed * 60 * speedMult;
             if (this.worldFollow) {
@@ -972,39 +1338,16 @@ export class GameController extends Component {
         setLayerRecursive(this.worldRoot!, GAME_LAYER);
     }
 
-    private _applyTalent(talentId: string | null): void {
-        if (!talentId) return;
-        const talent = getTalentById(talentId);
-        if (!talent) return;
-        console.log(`[Game] 应用天赋：${talent.name} - ${talent.description}`);
-        switch (talentId) {
-            case 'extra_life':
-                this._lives += 1;
-                this._maxLives += 1;
-                break;
-            case 'speed_boost':
-                // 在 setupActors 中应用
-                break;
-            case 'steal_fast':
-                // 在 updateFoodSteal 中应用
-                break;
-            case 'tough_skin':
-                // 在 onCatCatch 中应用
-                break;
-            case 'small_body':
-                // 在 resolveHamsterCollision 中应用
-                break;
-            default:
-                break;
-        }
-    }
-
     private resolveHamsterCollision(): void {
         const map = this._map;
         const runtime = this._runtime;
         if (!map || !runtime) return;
 
-        const holeNear = dist(runtime.hamster, map.ratHole) < runtime.hamster.r + map.ratHole.r + 24;
+        // 鼠洞附近不撞底墙
+        let holeNear = false;
+        if (map.ratHoleVisible) {
+            holeNear = dist(runtime.hamster, map.ratHole) < runtime.hamster.r + map.ratHole.r + 24;
+        }
 
         let x = runtime.hamster.x;
         let y = runtime.hamster.y;

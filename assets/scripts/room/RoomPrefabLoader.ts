@@ -1,7 +1,7 @@
-import { instantiate, Node, Prefab, resources } from 'cc';
-import type { FoodItem, FurnitureItem, GapRect, MapData, PowerupItem, RatHole } from '../data/GameTypes';
+import { instantiate, Node, Prefab, resources, Sprite } from 'cc';
+import type { FoodBowl, FoodItem, FurnitureItem, GapRect, MapData, PowerupItem, RatHole } from '../data/GameTypes';
 import { GameConfig } from '../core/GameConfig';
-import { placeFoodsForRoom, buildBorderWalls, createCatSpawn, repositionL1FoodsNearCat } from '../game/MapGenerator';
+import { placeFoodsForRoom, buildBorderWalls, createCatSpawn, repositionL1FoodsNearCat, markPushableFurniture, generateFoodBowls } from '../game/MapGenerator';
 import { MapView } from '../game/MapView';
 import { CatPathMarker } from './CatPathMarker';
 import { FurnitureMarker } from './FurnitureMarker';
@@ -60,7 +60,7 @@ function ensureRoomRoot(roomNode: Node, roomId: number, roomTpl: RoomTemplate): 
     return root;
 }
 
-export function buildMapDataFromRoomNode(roomNode: Node, levelId: number): MapData {
+export function buildMapDataFromRoomNode(roomNode: Node, levelId: number, opts?: { ratHoleVisible?: boolean }): MapData {
     const lv = GameConfig.getLevel(levelId) ?? GameConfig.levels[0];
     const roomTpl = GameConfig.getRoom(lv.roomId);
     if (!roomTpl) {
@@ -71,7 +71,11 @@ export function buildMapDataFromRoomNode(roomNode: Node, levelId: number): MapDa
     const walls = buildBorderWalls(mapW, mapH);
 
     const furniture: FurnitureItem[] = collectFurnitureMarkers(roomNode)
-        .map((m) => m.toFurnitureItem(mapW, mapH));
+        .map((m) => {
+            const item = m.toFurnitureItem(mapW, mapH);
+            item._nodeRef = m.node;
+            return item;
+        });
 
     const ratHoleMarker = roomNode.getComponentInChildren(RatHoleMarker);
     const ratHole: RatHole = ratHoleMarker?.toRatHole(mapW, mapH) ?? {
@@ -142,6 +146,15 @@ export function buildMapDataFromRoomNode(roomNode: Node, levelId: number): MapDa
         repositionL1FoodsNearCat(furniture, foods, catX, catY);
     }
 
+    // 标记可推动家具
+    markPushableFurniture(furniture);
+
+    // 生成猫粮碗
+    const foodBowls: FoodBowl[] = generateFoodBowls(mapW, mapH, furniture, levelId);
+
+    // 鼠洞可见性
+    const ratHoleVisible = opts?.ratHoleVisible ?? true;
+
     return {
         levelId,
         roomId: root.roomId,
@@ -152,6 +165,9 @@ export function buildMapDataFromRoomNode(roomNode: Node, levelId: number): MapDa
         foods,
         powerups,
         ratHole,
+        ratHoleVisible,
+        ratHoleIsExit: false,
+        foodBowls,
         spawnCatBed,
         narrowGaps: narrowGapsFinal,
         catPaths: catPathsFinal,
@@ -163,7 +179,7 @@ export function buildMapDataFromRoomNode(roomNode: Node, levelId: number): MapDa
 }
 
 /** 按关卡加载 resources/prefabs/rooms/Room{roomId}，找不到则返回 null */
-export async function loadRoomForLevel(levelId: number, parent: Node): Promise<RoomPrefabLoadResult | null> {
+export async function loadRoomForLevel(levelId: number, parent: Node, opts?: { ratHoleVisible?: boolean }): Promise<RoomPrefabLoadResult | null> {
     const lv = GameConfig.getLevel(levelId);
     if (!lv) {
         return null;
@@ -186,7 +202,7 @@ export async function loadRoomForLevel(levelId: number, parent: Node): Promise<R
         setLayerRecursive(roomNode, GAME_LAYER);
         parent.addChild(roomNode);
         roomNode.setSiblingIndex(0);
-        const map = buildMapDataFromRoomNode(roomNode, levelId);
+        const map = buildMapDataFromRoomNode(roomNode, levelId, { ratHoleVisible: opts?.ratHoleVisible ?? true });
         console.log(`[Room] 家具碰撞 ${map.furniture.length} 件，场景子节点 ${roomNode.children.length} 个`);
         for (const child of roomNode.children) {
             const spriteCount = child.getComponentsInChildren(Sprite).length;

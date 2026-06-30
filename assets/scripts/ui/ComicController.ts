@@ -17,7 +17,6 @@ import {
     UIOpacity,
 } from 'cc';
 import { DESIGN_HEIGHT, DESIGN_WIDTH } from '../core/DesignConstants';
-import { GameManager } from '../core/GameManager';
 import { SaveSystem } from '../core/SaveSystem';
 import { SceneNames } from '../core/SceneNames';
 
@@ -223,22 +222,13 @@ export class ComicController extends Component {
     private onClickStart(): void {
         SaveSystem.data.hasSeenComic = true;
         SaveSystem.save();
-        const manager = GameManager.instance;
-        console.log('[Comic] 点击开始游戏, GameManager:', manager ? '存在' : 'NULL');
-        if (manager) {
-            manager.goGame(1);
-        } else {
-            console.error('[Comic] GameManager 不存在，直接加载 Game 场景');
-            director.loadScene(SceneNames.Game);
-        }
+        // 漫画结束后回到主菜单（老鼠洞界面）
+        director.loadScene(SceneNames.Menu);
     }
 
     private skipToGame(): void {
-        const manager = GameManager.instance;
-        if (manager) {
-            manager.goGame(1);
-        } else {
-            director.loadScene(SceneNames.Game);
-        }
+        SaveSystem.data.hasSeenComic = true;
+        SaveSystem.save();
+        director.loadScene(SceneNames.Menu);
     }
 }

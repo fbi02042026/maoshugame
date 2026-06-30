@@ -1,3 +1,5 @@
+import type { Node } from 'cc';
+
 export interface LevelConfig {
     id: number;
     name: string;
@@ -97,6 +99,10 @@ export interface FurnitureItem {
     decor?: boolean;
     catbed?: boolean;
     hideable?: boolean;
+    /** 可推动的小家具（箱子、罐子等），玩家可像推箱子一样推动 */
+    pushable?: boolean;
+    /** 运行时引用：预制体中的原始视觉节点（推动时移动它） */
+    _nodeRef?: Node;
 }
 
 export interface FoodItem {
@@ -130,6 +136,12 @@ export interface RatHole {
     r: number;
 }
 
+export interface FoodBowl {
+    x: number;
+    y: number;
+    r: number;
+}
+
 export interface RoomTemplate {
     id: number;
     name: string;
@@ -144,6 +156,7 @@ export interface RoomTemplate {
     hamsterSpawn?: { x: number; y: number };
     catSpawn?: { x: number; y: number };
     powerups?: PowerupItem[];
+    foodBowls?: FoodBowl[];
 }
 
 export interface RoomCatalog {
@@ -161,6 +174,12 @@ export interface MapData {
     foods: FoodItem[];
     powerups: PowerupItem[];
     ratHole: RatHole;
+    /** 鼠洞是否已出现（收集完食物才true） */
+    ratHoleVisible: boolean;
+    /** 当前鼠洞是否是回家的出口（发金光） */
+    ratHoleIsExit: boolean;
+    /** 猫粮碗位置（猫会去吃，玩家可撞击吸引猫） */
+    foodBowls: FoodBowl[];
     spawnCatBed: FurnitureItem | null;
     narrowGaps: GapRect[];
     catPaths: GapRect[];

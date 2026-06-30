@@ -9,7 +9,7 @@ import {
     UITransform,
 } from 'cc';
 import { DESIGN_HEIGHT, DESIGN_WIDTH } from '../core/DesignConstants';
-import { TALENTS, getTalentById, type TalentConfig } from '../data/ChapterTypes';
+import { TALENTS, type TalentConfig } from '../data/RunTypes';
 
 const { ccclass } = _decorator;
 
@@ -71,15 +71,15 @@ export class TalentSelectView extends Component {
         titleLabel.color = new Color(255, 215, 0, 255);
         titleLabel.horizontalAlign = Label.HorizontalAlign.CENTER;
 
-        // 随机选3个天赋
-        const shuffled = shuffleArray(TALENTS);
-        const picks = shuffled.slice(0, 3);
+        // 随机选3个天赋（总共就3个，全部展示）
+        const picks = shuffleArray(TALENTS).slice(0, 3);
 
         // 卡片横向排列
-        const cardWidth = 180;
-        const cardHeight = 240;
+        const cardWidth = 200;
+        const cardHeight = 260;
         const gap = 30;
-        const startX = -(cardWidth * 3 + gap * 2) / 2 + cardWidth / 2;
+        const totalW = cardWidth * 3 + gap * 2;
+        const startX = -totalW / 2 + cardWidth / 2;
 
         picks.forEach((talent, idx) => {
             this.createTalentCard(overlay, talent, startX + idx * (cardWidth + gap), 0, cardWidth, cardHeight);
@@ -129,24 +129,24 @@ export class TalentSelectView extends Component {
         // 名称
         const nameNode = new Node('Name');
         card.addChild(nameNode);
-        nameNode.setPosition(0, -h * 0.15, 0);
+        nameNode.setPosition(0, -h * 0.12, 0);
         nameNode.addComponent(UITransform).setContentSize(w - 20, 40);
         const nameLabel = nameNode.addComponent(Label);
         nameLabel.string = talent.name;
-        nameLabel.fontSize = 22;
-        nameLabel.lineHeight = 28;
+        nameLabel.fontSize = 24;
+        nameLabel.lineHeight = 30;
         nameLabel.color = new Color(255, 255, 255, 255);
         nameLabel.horizontalAlign = Label.HorizontalAlign.CENTER;
 
         // 描述
         const descNode = new Node('Desc');
         card.addChild(descNode);
-        descNode.setPosition(0, -h * 0.4, 0);
+        descNode.setPosition(0, -h * 0.38, 0);
         descNode.addComponent(UITransform).setContentSize(w - 24, 60);
         const descLabel = descNode.addComponent(Label);
         descLabel.string = talent.description;
-        descLabel.fontSize = 16;
-        descLabel.lineHeight = 20;
+        descLabel.fontSize = 18;
+        descLabel.lineHeight = 24;
         descLabel.color = new Color(200, 200, 200, 255);
         descLabel.horizontalAlign = Label.HorizontalAlign.CENTER;
         descLabel.verticalAlign = Label.VerticalAlign.CENTER;

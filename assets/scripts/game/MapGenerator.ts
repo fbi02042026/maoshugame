@@ -2,6 +2,7 @@ import { circRectHit, dist, rand, randInt } from '../collision/CollisionUtil';
 import { HAMSTER_RADIUS, CAT_RADIUS } from '../core/DesignConstants';
 import { GameConfig } from '../core/GameConfig';
 import type {
+    FoodBowl,
     FoodConfig,
     FoodItem,
     FurnitureItem,
@@ -182,8 +183,103 @@ export function createCatSpawn(
     return { x: sx, y: sy, r: CAT_RADIUS, state: 'sleeping', stateTimer };
 }
 
+/**
+ * 在底部墙上随机找一个不与家具重叠的位置作为鼠洞
+ * （鼠洞只有在收集完食物后才出现，位置随机）
+ */
+export function randomizeRatHolePosition(map: MapData): RatHole {
+    const margin = 60;
+    const wallT = 18;
+    const holeR = map.ratHole.r;
+    const tryPositions: Array<{ x: number; y: number }> = [];
+
+    // 在底部墙附近随机采样
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+        const hx = rand(margin + holeR, map.mapW - margin - holeR);
+        const hy = map.mapH - wallT - holeR * 0.3; // 贴在底墙上
+        // 检查是否与家具重叠
+        let overlap = false;
+        for (const f of map.furniture) {
+            const pad = 20;
+            if (hx + holeR + pad > f.x && hx - holeR - pad < f.x + f.w
+                && hy + holeR + pad > f.y && hy - holeR - pad < f.y + f.h) {
+                overlap = true;
+                break;
+            }
+        }
+        if (!overlap) {
+            tryPositions.push({ x: hx, y: hy });
+            if (tryPositions.length >= 5) break;
+        }
+    }
+
+    if (tryPositions.length > 0) {
+        const pick = tryPositions[randInt(0, tryPositions.length - 1)];
+        return { x: pick.x, y: pick.y, r: holeR };
+    }
+    // 实在找不到就用原位置
+    return { ...map.ratHole };
+}
+
+/**
+ * 标记小家具为可推动的（宽度和高度都小于50的小型家具）
+ * 猫窝、装饰性物品不推
+ */
+export function markPushableFurniture(furniture: FurnitureItem[]): void {
+    const PUSHABLE_MAX = 55; // 小于这个尺寸的家具可推
+    for (const f of furniture) {
+        if (f.catbed || f.decor || f.hideable) {
+            f.pushable = false;
+            continue;
+        }
+        if (f.w <= PUSHABLE_MAX && f.h <= PUSHABLE_MAX) {
+            f.pushable = true;
+        }
+    }
+}
+
+/** 生成猫粮碗位置（1~2个） */
+export function generateFoodBowls(
+    mapW: number,
+    mapH: number,
+    furniture: FurnitureItem[],
+    levelId: number,
+): FoodBowl[] {
+    const bowls: FoodBowl[] = [];
+    const count = levelId === 1 ? 1 : (Math.random() < 0.7 ? 1 : 2);
+    const margin = 80;
+    const yMin = 100;
+    const yMax = mapH - margin - 40;
+
+    for (let i = 0; i < count; i += 1) {
+        for (let attempt = 0; attempt < 40; attempt += 1) {
+            const bx = rand(margin, mapW - margin);
+            const by = rand(yMin, yMax);
+            let overlap = false;
+            for (const f of furniture) {
+                if (bx + 30 > f.x && bx - 30 < f.x + f.w && by + 20 > f.y && by - 20 < f.y + f.h) {
+                    overlap = true;
+                    break;
+                }
+            }
+            // 也不能和已放的碗重叠
+            for (const b of bowls) {
+                if (Math.hypot(bx - b.x, by - b.y) < 80) {
+                    overlap = true;
+                    break;
+                }
+            }
+            if (!overlap) {
+                bowls.push({ x: bx, y: by, r: 18 });
+                break;
+            }
+        }
+    }
+    return bowls;
+}
+
 /** JSON 房间配置（无预制体时的后备方案） */
-export function generateMapFromJson(levelId: number): MapData {
+export function generateMapFromJson(levelId: number, opts?: { ratHoleVisible?: boolean }): MapData {
     const lv = GameConfig.getLevel(levelId) ?? GameConfig.levels[0];
     const room = GameConfig.getRoom(lv.roomId);
     if (!room) {
@@ -241,6 +337,15 @@ export function generateMapFromJson(levelId: number): MapData {
         repositionL1FoodsNearCat(furniture, foods, catX, catY);
     }
 
+    // 标记可推动家具
+    markPushableFurniture(furniture);
+
+    // 生成猫粮碗
+    const foodBowls = generateFoodBowls(mapW, mapH, furniture, levelId);
+
+    // 鼠洞可见性：默认true（引导/非跑酷），跑酷模式由opts控制
+    const ratHoleVisible = opts?.ratHoleVisible ?? true;
+
     return {
         levelId,
         roomId: room.id,
@@ -251,6 +356,9 @@ export function generateMapFromJson(levelId: number): MapData {
         foods,
         powerups,
         ratHole,
+        ratHoleVisible,
+        ratHoleIsExit: false,
+        foodBowls,
         spawnCatBed,
         narrowGaps,
         catPaths,
@@ -292,7 +400,7 @@ export function expandWallsForCollision(map: MapData): WallRect[] {
 export function getCollidableRects(map: MapData): WallRect[] {
     const rects: WallRect[] = expandWallsForCollision(map);
     for (const f of map.furniture) {
-        if (f.interactive) {
+        if (f.interactive || f.pushable) {
             rects.push({ x: f.x, y: f.y, w: f.w, h: f.h });
         }
     }
