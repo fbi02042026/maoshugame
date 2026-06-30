@@ -29,6 +29,7 @@ import { MapView } from './MapView';
 import { loadRoomForLevel } from '../room/RoomPrefabLoader';
 import { SaveSystem } from '../core/SaveSystem';
 import { GameResultOverlay } from '../ui/GameResultOverlay';
+import { getTalentById } from '../data/ChapterTypes';
 
 const { ccclass } = _decorator;
 
@@ -80,7 +81,15 @@ export class GameController extends Component {
         const manager = GameManager.instance;
         const levelId = manager?.currentLevel ?? 1;
         this._levelId = levelId;
-        this._lives = this._maxLives;
+
+        // 章节模式：继承剩余生命，应用天赋
+        if (manager?.chapterMode && manager.chapterProgress) {
+            this._lives = manager.chapterProgress.livesRemaining;
+            this._applyTalent(manager.chapterProgress.selectedTalentId);
+        } else {
+            this._lives = this._maxLives;
+        }
+
         this._phase = 'opening';
         this._openingTimer = 0;
         this._countdown = -1;
@@ -300,6 +309,21 @@ export class GameController extends Component {
             return;
         }
 
+        // 章节模式：房间完成，通知 GameManager
+        const manager = GameManager.instance;
+        if (manager?.chapterMode) {
+            const hasNext = manager.onRoomComplete({
+                won: true,
+                foodCollected: this._foodCollected,
+                livesRemaining: this._lives,
+                isLastRoom: false,
+            });
+            if (!hasNext) {
+                this.endGame(true);
+            }
+            return;
+        }
+
         this.endGame(true);
     }
 
@@ -313,9 +337,45 @@ export class GameController extends Component {
 
         this.worldFollow?.clearFixedFocus();
 
+        const manager = GameManager.instance;
         const levelId = this._levelId;
         const foodTarget = this._map?.foodTarget ?? 0;
 
+        // 章节模式：最后一个房间的胜利/失败结算
+        if (manager?.chapterMode && manager.chapterConfig) {
+            const chapter = manager.chapterConfig;
+            const progress = manager.chapterProgress;
+            if (won) {
+                const coins = chapter.rewardCoins + (progress?.totalFoodCollected ?? 0) * 10;
+                if (this.hudLabel) {
+                    this.hudLabel.string = `${chapter.name} 通关！获得 ${coins} 金币`;
+                }
+                this._resultOverlay?.showWin(
+                    '章节通关！',
+                    `偷取食物 ${progress?.totalFoodCollected ?? 0} 份 · 获得 ${coins} 金币`,
+                    {
+                        onNext: () => manager.goMenu(),
+                        onRetry: () => manager.startChapter(chapter.id),
+                        onMenu: () => manager.goMenu(),
+                    },
+                );
+            } else {
+                if (this.hudLabel) {
+                    this.hudLabel.string = '失败 · 生命耗尽';
+                }
+                this._resultOverlay?.showLose(
+                    '章节失败',
+                    '被猫抓住太多次了，再试一次吧',
+                    {
+                        onRetry: () => manager.startChapter(chapter.id),
+                        onMenu: () => manager.goMenu(),
+                    },
+                );
+            }
+            return;
+        }
+
+        // 普通关卡模式
         if (won) {
             const stars = this._lives;
             SaveSystem.updateStars(levelId, stars);
@@ -582,7 +642,15 @@ export class GameController extends Component {
         this._runtime.sageHint = { text: msg, timer: 3.0 };
 
         if (this._lives <= 0) {
-            this.scheduleOnce(() => this.endGame(false), 0.8);
+            const manager = GameManager.instance;
+            if (manager?.chapterMode) {
+                const hasNext = manager.onRoomFail();
+                if (!hasNext) {
+                    this.scheduleOnce(() => this.endGame(false), 0.8);
+                }
+            } else {
+                this.scheduleOnce(() => this.endGame(false), 0.8);
+            }
         }
     }
 
@@ -878,7 +946,13 @@ export class GameController extends Component {
             }
             const hc = this.hamsterNode.getComponent(HamsterController) ?? this.hamsterNode.addComponent(HamsterController);
             hc.radius = hamster.r;
-            hc.speed = GameConfig.difficulty.hamsterBaseSpeed * 60 * 1.3;
+            let speedMult = 1.3;
+            const manager = GameManager.instance;
+            if (manager?.chapterMode && manager.chapterProgress?.selectedTalentId === 'speed_boost') {
+                speedMult *= 1.2;
+                console.log('[Game] 天赋风火轮生效，速度 +20%');
+            }
+            hc.speed = GameConfig.difficulty.hamsterBaseSpeed * 60 * speedMult;
             if (this.worldFollow) {
                 this.worldFollow.target = this.hamsterNode;
                 const fillZoom = map.levelId === 1
@@ -896,6 +970,33 @@ export class GameController extends Component {
         }
 
         setLayerRecursive(this.worldRoot!, GAME_LAYER);
+    }
+
+    private _applyTalent(talentId: string | null): void {
+        if (!talentId) return;
+        const talent = getTalentById(talentId);
+        if (!talent) return;
+        console.log(`[Game] 应用天赋：${talent.name} - ${talent.description}`);
+        switch (talentId) {
+            case 'extra_life':
+                this._lives += 1;
+                this._maxLives += 1;
+                break;
+            case 'speed_boost':
+                // 在 setupActors 中应用
+                break;
+            case 'steal_fast':
+                // 在 updateFoodSteal 中应用
+                break;
+            case 'tough_skin':
+                // 在 onCatCatch 中应用
+                break;
+            case 'small_body':
+                // 在 resolveHamsterCollision 中应用
+                break;
+            default:
+                break;
+        }
     }
 
     private resolveHamsterCollision(): void {
