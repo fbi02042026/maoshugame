@@ -1,11 +1,16 @@
 import {
     _decorator,
+    assetManager,
     Button,
     Color,
     Component,
     director,
+    ImageAsset,
     Label,
     Node,
+    Sprite,
+    SpriteFrame,
+    Texture2D,
     UITransform,
 } from 'cc';
 import { DESIGN_HEIGHT } from '../core/DesignConstants';
@@ -14,16 +19,53 @@ import { SceneNames } from '../core/SceneNames';
 
 const { ccclass } = _decorator;
 
+const LOGIN_UUID = 'd77b3fdd-e7a8-42b9-a558-96a59279cf00';
+
 @ccclass('MenuController')
 export class MenuController extends Component {
     private titleLabel: Label | null = null;
     private progressLabel: Label | null = null;
     private startButton: Node | null = null;
 
-    start(): void {
+    async start(): Promise<void> {
         SaveSystem.load();
         this.ensureUi();
         this.refreshUi();
+        try {
+            await this.loadLoginBg();
+        } catch (err) {
+            console.warn('[Menu] 登录背景图加载失败', err);
+        }
+    }
+
+    private async loadLoginBg(): Promise<void> {
+        const spriteFrame = await new Promise<SpriteFrame>((resolve, reject) => {
+            assetManager.loadAny({ uuid: LOGIN_UUID }, (err, asset) => {
+                if (err || !asset) {
+                    reject(err ?? new Error('加载登录图片失败'));
+                    return;
+                }
+                const imageAsset = asset as ImageAsset;
+                const texture = new Texture2D();
+                texture.image = imageAsset;
+                const sf = new SpriteFrame();
+                sf.texture = texture;
+                resolve(sf);
+            });
+        });
+
+        const canvas = this.node;
+        // 删除旧的背景（如果有）
+        const oldBg = canvas.getChildByName('LoginBg');
+        if (oldBg) oldBg.destroy();
+
+        const bgNode = new Node('LoginBg');
+        canvas.addChild(bgNode);
+        bgNode.setPosition(0, 0, -10);
+        bgNode.addComponent(UITransform).setContentSize(720, 1280);
+        const sprite = bgNode.addComponent(Sprite);
+        sprite.spriteFrame = spriteFrame;
+        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
     }
 
     onClickStart(): void {
@@ -39,9 +81,9 @@ export class MenuController extends Component {
             titleNode.setPosition(0, DESIGN_HEIGHT * 0.18, 0);
             titleNode.addComponent(UITransform).setContentSize(520, 90);
             const label = titleNode.addComponent(Label);
-            label.fontSize = 42;
-            label.lineHeight = 48;
-            label.color = new Color(255, 230, 180, 255);
+            label.fontSize = 46;
+            label.lineHeight = 54;
+            label.color = new Color(255, 200, 80, 255);
             label.horizontalAlign = Label.HorizontalAlign.CENTER;
             this.titleLabel = label;
         }
@@ -74,7 +116,7 @@ export class MenuController extends Component {
             label.string = '开始游戏';
             label.fontSize = 30;
             label.lineHeight = 36;
-            label.color = new Color(40, 40, 40, 255);
+            label.color = new Color(255, 255, 255, 255);
             label.horizontalAlign = Label.HorizontalAlign.CENTER;
             label.verticalAlign = Label.VerticalAlign.CENTER;
             this.startButton = buttonNode;
@@ -84,7 +126,7 @@ export class MenuController extends Component {
     private refreshUi(): void {
         const save = SaveSystem.data;
         if (this.titleLabel) {
-            this.titleLabel.string = '仓鼠大作战';
+            this.titleLabel.string = '肥猫莫追我';
         }
         if (this.progressLabel) {
             this.progressLabel.string = `已解锁 ${save.maxUnlocked}/8 关 · 皮肤 ${save.unlockedSkins.length}`;
