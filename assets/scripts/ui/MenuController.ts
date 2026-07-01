@@ -2,281 +2,208 @@ import {
     _decorator,
     assetManager,
     Button,
-    Color,
     Component,
-    director,
-    Graphics,
-    ImageAsset,
     Label,
     Node,
     Sprite,
     SpriteFrame,
     Texture2D,
-    UITransform,
+    ImageAsset,
 } from 'cc';
-import { DESIGN_HEIGHT, DESIGN_WIDTH } from '../core/DesignConstants';
 import { GameManager } from '../core/GameManager';
 import { SaveSystem } from '../core/SaveSystem';
-import { SceneNames } from '../core/SceneNames';
 import { TalentSelectView } from './TalentSelectView';
 
 const { ccclass } = _decorator;
 
-const LOGIN_UUID = 'd77b3fdd-e7a8-42b9-a558-96a59279cf00';
+// 仓鼠序列帧 UUID（吃饭 x8 + 睡觉 x8）
+const EATING_FRAMES = [
+    '86c9b581-bf5a-471e-a711-6c20a7aa36bb@6c48a',
+    'f81e376a-ca4c-4d2b-bf31-ae6891b370b6@6c48a',
+    '3d1a4d43-67d6-4a21-bb7d-51e1382deea3@6c48a',
+    'dd1d6c18-6105-4ffb-a60e-7bf910f9a73b@6c48a',
+    'd7918948-0d1e-4afa-91c5-b9eb039a34e0@6c48a',
+    'f6f43364-e00a-40ba-b3e9-02d69e4f2ec0@6c48a',
+    'bffe126c-74b4-4862-a06e-cf79b091d0d7@6c48a',
+    '19e5585e-b252-49de-b389-2bb253970522@6c48a',
+];
+
+const SLEEPING_FRAMES = [
+    '1865f198-5d37-40bf-bd1b-ecdd6434d557@6c48a',
+    '9e0cb1a2-8314-4a92-99f2-c95de82f4586@6c48a',
+    '2648dec0-8d47-4ef4-a2ba-095286ed024c@6c48a',
+    'a93e4d22-cd33-4abc-accc-fd12f628c2b6@6c48a',
+    '8d65e61b-d8ec-43a7-ab51-2bea2e2fd6bf@6c48a',
+    '37048e91-ff1f-479f-b112-b9d37927d918@6c48a',
+    'e9544612-50ca-4f1a-816c-b43f30dd3dc1@6c48a',
+    '2a0f0980-9d19-4b4f-bf64-39d10b0041d3@6c48a',
+];
+
+const FRAME_INTERVAL = 0.15; // 每帧间隔（秒）
 
 @ccclass('MenuController')
 export class MenuController extends Component {
-    private startButton: Node | null = null;
-    private skinButton: Node | null = null;
+    // 场景节点引用
+    private hamsterNode: Node | null = null;
+    private hamsterSprite: Sprite | null = null;
     private coinLabel: Label | null = null;
     private bestLabel: Label | null = null;
+    private startButton: Node | null = null;
+    private skinButton: Node | null = null;
+    private levelButton: Node | null = null;
+    private settingsButton: Node | null = null;
+
+    // 仓鼠动画
+    private hamsterFrames: SpriteFrame[] = [];
+    private hamsterFrameIdx = 0;
+    private hamsterTimer = 0;
+    private hamsterAnimating = false;
+
+    // 天赋选择
     private talentView: TalentSelectView | null = null;
 
-    async start(): Promise<void> {
+    start(): void {
         SaveSystem.load();
-
-        // 如果还没看过漫画，先跳转到漫画场景
-        if (!SaveSystem.data.hasSeenComic) {
-            director.loadScene(SceneNames.Comic);
-            return;
-        }
-
-        try {
-            await this.loadLoginBg();
-        } catch (err) {
-            console.warn('[Menu] 登录背景图加载失败', err);
-        }
-        this.ensureUi();
+        this.bindSceneNodes();
+        this.bindButtons();
+        this.initTalentView();
+        this.startHamsterAnimation();
         this.refreshUi();
     }
 
-    private async loadLoginBg(): Promise<void> {
-        const spriteFrame = await new Promise<SpriteFrame>((resolve, reject) => {
-            assetManager.loadAny({ uuid: LOGIN_UUID }, (err, asset) => {
-                if (err || !asset) {
-                    reject(err ?? new Error('加载登录图片失败'));
-                    return;
-                }
-                const imageAsset = asset as ImageAsset;
-                const texture = new Texture2D();
-                texture.image = imageAsset;
-                const sf = new SpriteFrame();
-                sf.texture = texture;
-                resolve(sf);
-            });
-        });
-
-        const canvas = this.node;
-        const oldBg = canvas.getChildByName('LoginBg');
-        if (oldBg) oldBg.destroy();
-
-        const bgNode = new Node('LoginBg');
-        canvas.addChild(bgNode);
-        bgNode.setPosition(0, 0, -10);
-        bgNode.addComponent(UITransform).setContentSize(720, 1280);
-        const sprite = bgNode.addComponent(Sprite);
-        sprite.spriteFrame = spriteFrame;
-        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+    onEnable(): void {
+        // 从别的界面切回时刷新UI
+        this.refreshUi();
+        // 随机切换仓鼠状态
+        this.startHamsterAnimation();
     }
 
-    private ensureUi(): void {
-        const canvas = this.node;
-
-        // 标题
-        this.ensureTitle(canvas);
-
-        // 金币显示（右上角）
-        if (!this.coinLabel) {
-            const coinNode = new Node('CoinLabel');
-            canvas.addChild(coinNode);
-            coinNode.setPosition(DESIGN_WIDTH / 2 - 100, DESIGN_HEIGHT / 2 - 60, 0);
-            coinNode.addComponent(UITransform).setContentSize(180, 40);
-            const label = coinNode.addComponent(Label);
-            label.fontSize = 26;
-            label.lineHeight = 32;
-            label.color = new Color(255, 215, 0, 255);
-            label.horizontalAlign = Label.HorizontalAlign.RIGHT;
-            label.useSystemFont = true;
-            this.coinLabel = label;
-        }
-
-        // 最佳记录（金币下方）
-        if (!this.bestLabel) {
-            const bestNode = new Node('BestLabel');
-            canvas.addChild(bestNode);
-            bestNode.setPosition(DESIGN_WIDTH / 2 - 100, DESIGN_HEIGHT / 2 - 100, 0);
-            bestNode.addComponent(UITransform).setContentSize(180, 30);
-            const label = bestNode.addComponent(Label);
-            label.fontSize = 18;
-            label.lineHeight = 24;
-            label.color = new Color(200, 200, 200, 200);
-            label.horizontalAlign = Label.HorizontalAlign.RIGHT;
-            label.useSystemFont = true;
-            this.bestLabel = label;
-        }
-
-        // 开始游戏按钮
-        if (!this.startButton) {
-            const btnNode = new Node('StartButton');
-            canvas.addChild(btnNode);
-            btnNode.setPosition(0, -200, 0);
-            btnNode.addComponent(UITransform).setContentSize(280, 80);
-            const btn = btnNode.addComponent(Button);
-            btn.transition = Button.Transition.SCALE;
-            btn.zoomScale = 1.08;
-            btnNode.on(Button.EventType.CLICK, this.onClickStart, this);
-
-            // 按钮背景
-            const bgNode = new Node('Bg');
-            btnNode.addChild(bgNode);
-            bgNode.setPosition(0, 0, -1);
-            bgNode.addComponent(UITransform).setContentSize(280, 80);
-            const bgGfx = bgNode.addComponent(Graphics);
-            bgGfx.fillColor = new Color(60, 40, 20, 230);
-            bgGfx.roundRect(-140, -40, 280, 80, 12);
-            bgGfx.fill();
-            bgGfx.strokeColor = new Color(255, 200, 100, 255);
-            bgGfx.lineWidth = 3;
-            bgGfx.roundRect(-140, -40, 280, 80, 12);
-            bgGfx.stroke();
-
-            const labelNode = new Node('Label');
-            btnNode.addChild(labelNode);
-            labelNode.addComponent(UITransform).setContentSize(280, 80);
-            const label = labelNode.addComponent(Label);
-            label.string = '开始偷奶酪';
-            label.fontSize = 34;
-            label.lineHeight = 42;
-            label.color = new Color(255, 240, 200, 255);
-            label.horizontalAlign = Label.HorizontalAlign.CENTER;
-            label.verticalAlign = Label.VerticalAlign.CENTER;
-            label.useSystemFont = true;
-
-            this.startButton = btnNode;
-        }
-
-        // 皮肤按钮
-        if (!this.skinButton) {
-            const btnNode = new Node('SkinButton');
-            canvas.addChild(btnNode);
-            btnNode.setPosition(0, -300, 0);
-            btnNode.addComponent(UITransform).setContentSize(220, 60);
-            const btn = btnNode.addComponent(Button);
-            btn.transition = Button.Transition.SCALE;
-            btn.zoomScale = 1.05;
-            btnNode.on(Button.EventType.CLICK, this.onClickSkin, this);
-
-            const bgNode = new Node('Bg');
-            btnNode.addChild(bgNode);
-            bgNode.setPosition(0, 0, -1);
-            bgNode.addComponent(UITransform).setContentSize(220, 60);
-            const bgGfx = bgNode.addComponent(Graphics);
-            bgGfx.fillColor = new Color(40, 40, 50, 200);
-            bgGfx.roundRect(-110, -30, 220, 60, 10);
-            bgGfx.fill();
-            bgGfx.strokeColor = new Color(150, 150, 180, 200);
-            bgGfx.lineWidth = 2;
-            bgGfx.roundRect(-110, -30, 220, 60, 10);
-            bgGfx.stroke();
-
-            const labelNode = new Node('Label');
-            btnNode.addChild(labelNode);
-            labelNode.addComponent(UITransform).setContentSize(220, 60);
-            const label = labelNode.addComponent(Label);
-            label.string = '皮肤 (即将推出)';
-            label.fontSize = 24;
-            label.lineHeight = 30;
-            label.color = new Color(200, 200, 220, 255);
-            label.horizontalAlign = Label.HorizontalAlign.CENTER;
-            label.verticalAlign = Label.VerticalAlign.CENTER;
-            label.useSystemFont = true;
-
-            this.skinButton = btnNode;
-        }
-
-        // 天赋选择组件（隐藏）
-        if (!this.talentView) {
-            const tvNode = new Node('TalentSelectView');
-            canvas.addChild(tvNode);
-            this.talentView = tvNode.addComponent(TalentSelectView);
+    update(dt: number): void {
+        if (!this.hamsterAnimating || this.hamsterFrames.length === 0) return;
+        this.hamsterTimer += dt;
+        if (this.hamsterTimer >= FRAME_INTERVAL) {
+            this.hamsterTimer -= FRAME_INTERVAL;
+            this.hamsterFrameIdx = (this.hamsterFrameIdx + 1) % this.hamsterFrames.length;
+            if (this.hamsterSprite) {
+                this.hamsterSprite.spriteFrame = this.hamsterFrames[this.hamsterFrameIdx];
+            }
         }
     }
 
-    private ensureTitle(canvas: Node): void {
-        if (canvas.getChildByName('GameTitle')) return;
-        const titleNode = new Node('GameTitle');
-        canvas.addChild(titleNode);
-        titleNode.setPosition(0, DESIGN_HEIGHT / 2 - 160, 0);
-        titleNode.addComponent(UITransform).setContentSize(500, 80);
-        const label = titleNode.addComponent(Label);
-        label.string = '肥猫莫追我';
-        label.fontSize = 52;
-        label.lineHeight = 60;
-        label.color = new Color(255, 255, 255, 240);
-        label.horizontalAlign = Label.HorizontalAlign.CENTER;
-        label.verticalAlign = Label.VerticalAlign.CENTER;
-        label.useSystemFont = true;
-        // 标题描边效果（用阴影模拟）
-        const shadowNode = new Node('Shadow');
-        titleNode.addChild(shadowNode);
-        shadowNode.setPosition(2, -2, -1);
-        shadowNode.addComponent(UITransform).setContentSize(500, 80);
-        const shadowLabel = shadowNode.addComponent(Label);
-        shadowLabel.string = '肥猫莫追我';
-        shadowLabel.fontSize = 52;
-        shadowLabel.lineHeight = 60;
-        shadowLabel.color = new Color(0, 0, 0, 180);
-        shadowLabel.horizontalAlign = Label.HorizontalAlign.CENTER;
-        shadowLabel.verticalAlign = Label.VerticalAlign.CENTER;
-        shadowLabel.useSystemFont = true;
+    // ============================================================
+    // 绑定场景节点
+    // ============================================================
+    private bindSceneNodes(): void {
+        this.hamsterNode = this.node.getChildByName('Hamster');
+        this.hamsterSprite = this.hamsterNode?.getComponent(Sprite) ?? null;
+
+        const coinNode = this.node.getChildByName('CoinDisplay');
+        this.coinLabel = coinNode?.getComponent(Label) ?? null;
+
+        const bestNode = this.node.getChildByName('BestDisplay');
+        this.bestLabel = bestNode?.getComponent(Label) ?? null;
+
+        this.startButton = this.node.getChildByName('StartButton');
+        this.skinButton = this.node.getChildByName('SkinButton');
+        this.levelButton = this.node.getChildByName('LevelButton');
+        this.settingsButton = this.node.getChildByName('SettingsButton');
     }
 
+    // ============================================================
+    // 绑定按钮事件
+    // ============================================================
+    private bindButtons(): void {
+        this.startButton?.on(Button.EventType.CLICK, this.onClickStart, this);
+        this.skinButton?.on(Button.EventType.CLICK, this.onClickSkin, this);
+        this.levelButton?.on(Button.EventType.CLICK, this.onClickLevelSelect, this);
+        this.settingsButton?.on(Button.EventType.CLICK, this.onClickSettings, this);
+    }
+
+    // ============================================================
+    // 天赋选择
+    // ============================================================
+    private initTalentView(): void {
+        if (this.talentView) return;
+        const tv = new Node('TalentSelectView');
+        this.node.addChild(tv);
+        this.talentView = tv.addComponent(TalentSelectView);
+    }
+
+    // ============================================================
+    // 仓鼠序列帧动画
+    // ============================================================
+    private startHamsterAnimation(): void {
+        // 随机选择吃饭或睡觉状态
+        const isEating = Math.random() < 0.5;
+        const frameUuids = isEating ? EATING_FRAMES : SLEEPING_FRAMES;
+
+        this.hamsterAnimating = false;
+        this.hamsterFrames = [];
+        this.hamsterFrameIdx = 0;
+        this.hamsterTimer = 0;
+
+        // 加载所有帧
+        let loaded = 0;
+        const frames: (SpriteFrame | null)[] = new Array(frameUuids.length).fill(null);
+
+        for (let i = 0; i < frameUuids.length; i++) {
+            assetManager.loadAny(
+                { uuid: frameUuids[i] },
+                (err, asset) => {
+                    if (err) {
+                        loaded++;
+                        return;
+                    }
+                    const sf = new SpriteFrame();
+                    sf.texture = asset as Texture2D;
+                    frames[i] = sf;
+                    loaded++;
+                    if (loaded === frameUuids.length) {
+                        this.hamsterFrames = frames.filter((f): f is SpriteFrame => f !== null);
+                        if (this.hamsterFrames.length > 0 && this.hamsterSprite) {
+                            this.hamsterSprite.spriteFrame = this.hamsterFrames[0];
+                            this.hamsterAnimating = true;
+                        }
+                    }
+                },
+            );
+        }
+    }
+
+    // ============================================================
+    // UI 刷新
+    // ============================================================
     private refreshUi(): void {
         if (this.coinLabel) {
             this.coinLabel.string = `🧀 ${SaveSystem.data.coins}`;
         }
         if (this.bestLabel) {
-            const best = SaveSystem.data.bestFoodSingleRun ?? 0;
-            this.bestLabel.string = best > 0 ? `最佳 ${best} 块奶酪` : '';
+            const b = SaveSystem.data.bestFoodSingleRun ?? 0;
+            this.bestLabel.string = b > 0 ? `最佳 ${b} 块奶酪` : '';
         }
     }
 
+    // ============================================================
+    // 按钮回调
+    // ============================================================
     onClickStart(): void {
         const save = SaveSystem.data;
-        const manager = GameManager.instance;
-        if (!manager) return;
-
-        // 引导阶段判断
-        if (save.tutorialStep === 0) {
-            // 引导第1关：房间1，无天赋
-            manager.startTutorial1();
-            return;
-        }
-
+        const mgr = GameManager.instance;
+        if (!mgr) return;
+        if (save.tutorialStep === 0) { mgr.startTutorial1(); return; }
         if (save.tutorialStep === 1) {
-            // 引导第2关：房间1→房间2，选天赋
-            this.showTalentSelect((talentId) => {
-                manager.startTutorial2(talentId);
-            });
+            this.showTalentSelect((tid) => mgr.startTutorial2(tid));
             return;
         }
-
-        // 正式跑酷：选天赋后开始
-        this.showTalentSelect((talentId) => {
-            manager.startRun(talentId);
-        });
+        this.showTalentSelect((tid) => mgr.startRun(tid));
     }
 
     private showTalentSelect(onSelect: (talentId: string) => void): void {
-        if (this.talentView) {
-            this.talentView.show(onSelect);
-        } else {
-            onSelect('');
-        }
+        if (this.talentView) this.talentView.show(onSelect);
+        else onSelect('');
     }
 
-    onClickSkin(): void {
-        // 皮肤商店待实现
-        console.log('[Menu] 皮肤商店待实现');
-    }
+    onClickSkin(): void { /* P1 */ }
+    onClickLevelSelect(): void { /* P1 */ }
+    onClickSettings(): void { /* P1 */ }
 }

@@ -8,5 +8,11 @@
       "fitHeight": true
     },
     "launchScene": "db://assets/scenes/Boot.scene"
-  }
+  },
+  "layer": [
+    {
+      "name": "canvas_19",
+      "value": 524288
+    }
+  ]
 }

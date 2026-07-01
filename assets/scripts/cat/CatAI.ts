@@ -19,6 +19,21 @@ import type { CatRuntimeState, GameRuntimeContext, HamsterRuntimeState } from '.
 const C = () => GameConfig.constants;
 const D = () => GameConfig.difficulty;
 
+// 弹射系统参数
+const LAUNCH = {
+    chargeRate: 40,          // 每秒蓄能量 (0→100 ≈ 2.5秒)
+    maxSpeed: 8.0,           // 满能量发射速度 (8.0 * 60 ≈ 480 px/s)
+    maxTime: 1.5,            // 满能量飞行时间 (秒)
+    minEnergy: 30,           // 最小发射能量
+    chaseTriggerDist: 150,   // 超过此距离开始蓄能
+    wallBounceDecay: 0.7,    // 碰墙速度保留
+    stunDuration: 1.5,       // 眩晕时间 (秒)
+    angerThreshold: 3,       // 眩晕次数触发愤怒
+    angerDistBonus: 0.3,     // 愤怒弹射距离+30%
+    predictionWeight: 0.65,  // 预判权重
+    predictSampleStep: 10,   // 轨迹采样间距
+} as const;
+
 export function pickInitialCatState(levelId: number, stateTimerOverride?: number): {
     state: CatRuntimeState['state'];
     stateTimer: number;
@@ -95,6 +110,14 @@ export function createCatState(levelId: number, sx: number, sy: number, stateTim
         avoidUntil: 0,
         avoidVx: 0,
         avoidVy: 0,
+        // 弹射系统
+        energy: 0,
+        launchVx: 0,
+        launchVy: 0,
+        launchSpeed: 0,
+        launchFlightTime: 0,
+        launchFlightTimer: 0,
+        angerLevel: 0,
     };
 }
 
@@ -167,6 +190,86 @@ function getCatBedPos(map: MapData): { x: number; y: number } | null {
     const bed = map.spawnCatBed ?? map.furniture.find((f) => f.catbed);
     if (bed) return { x: bed.x + bed.w / 2, y: bed.y + bed.h / 2 };
     return null;
+}
+
+// === 弹射系统辅助函数 ===
+
+function calcLaunchDistance(energy: number, angerBonus: boolean): number {
+    const ratio = energy / 100;
+    const speed = ratio * LAUNCH.maxSpeed;
+    const time = ratio * LAUNCH.maxTime;
+    let dist = speed * time * 60 / 2;
+    if (angerBonus) dist *= (1 + LAUNCH.angerDistBonus);
+    return dist;
+}
+
+function calcRequiredEnergy(distance: number): number {
+    if (distance <= 0) return LAUNCH.minEnergy;
+    const ratio = Math.sqrt(distance * 2 / (LAUNCH.maxSpeed * 60 * LAUNCH.maxTime));
+    return Math.max(LAUNCH.minEnergy, Math.min(100, ratio * 100));
+}
+
+function predictLaunchTrajectory(
+    startX: number, startY: number, dirX: number, dirY: number,
+    energy: number, furniture: FurnitureItem[], mapW: number, mapH: number,
+): { hitFurniture: boolean } {
+    const launchSpeed = (energy / 100) * LAUNCH.maxSpeed;
+    const flightTime = (energy / 100) * LAUNCH.maxTime;
+    const step = LAUNCH.predictSampleStep;
+    const dt = step / (launchSpeed * 60);
+    let cx = startX, cy = startY;
+    let cvx = dirX * launchSpeed, cvy = dirY * launchSpeed;
+    let elapsed = 0;
+    let wallBounces = 0;
+    const wallPad = 18;
+
+    while (elapsed < flightTime && wallBounces <= 2) {
+        const tFrac = elapsed / flightTime;
+        if (tFrac >= 1) break;
+        const vx = cvx * (1 - tFrac);
+        const vy = cvy * (1 - tFrac);
+        if (Math.hypot(vx, vy) < 0.1) break;
+
+        const nx = cx + vx * 60 * dt;
+        const ny = cy + vy * 60 * dt;
+
+        for (const f of furniture) {
+            if (f.interactive && circRectHit(nx, ny, CAT_RADIUS + 4, f.x, f.y, f.w, f.h)) {
+                return { hitFurniture: true };
+            }
+        }
+
+        let bounced = false;
+        if (nx - CAT_RADIUS < wallPad) { cx = wallPad + CAT_RADIUS; cvx = Math.abs(cvx) * LAUNCH.wallBounceDecay; bounced = true; }
+        else if (nx + CAT_RADIUS > mapW - wallPad) { cx = mapW - wallPad - CAT_RADIUS; cvx = -Math.abs(cvx) * LAUNCH.wallBounceDecay; bounced = true; }
+        if (ny - CAT_RADIUS < wallPad) { cy = wallPad + CAT_RADIUS; cvy = Math.abs(cvy) * LAUNCH.wallBounceDecay; bounced = true; }
+        else if (ny + CAT_RADIUS > mapH - wallPad) { cy = mapH - wallPad - CAT_RADIUS; cvy = -Math.abs(cvy) * LAUNCH.wallBounceDecay; bounced = true; }
+
+        if (bounced) {
+            wallBounces++;
+            elapsed = 0;
+            if (Math.hypot(cvx, cvy) < 0.1) break;
+            continue;
+        }
+
+        cx = nx; cy = ny;
+        elapsed += dt;
+    }
+
+    return { hitFurniture: false };
+}
+
+function launchCat(c: CatRuntimeState, dirX: number, dirY: number, h: HamsterRuntimeState): void {
+    const isAngry = c.angerLevel >= LAUNCH.angerThreshold;
+    c.state = 'launching';
+    c.launchSpeed = (c.energy / 100) * LAUNCH.maxSpeed;
+    c.launchFlightTime = (c.energy / 100) * LAUNCH.maxTime;
+    c.launchFlightTimer = 0;
+    c.launchVx = dirX;
+    c.launchVy = dirY;
+    c.targetSpd = 0;
+    c.curSpd = 0;
+    c.energy = 0;
 }
 
 function tickCatAbandon(c: CatRuntimeState, h: HamsterRuntimeState, d: number, dt: number, levelId: number): boolean {
@@ -321,11 +424,11 @@ function catMove(cat: CatRuntimeState, tx: number, ty: number, time: number): vo
 }
 
 function isCatPursuing(c: CatRuntimeState): boolean {
-    return c.state === 'chase' || (c.state === 'charging' && !c.wakeCharge);
+    return c.state === 'chase' || c.state === 'launching' || (c.state === 'charging' && !c.wakeCharge);
 }
 
 function isCatFastEnough(c: CatRuntimeState): boolean {
-    return c.dashTimer > 0 || c.curSpd >= c.chaseSpeed * 0.5;
+    return c.state === 'launching' || c.dashTimer > 0 || c.curSpd >= c.chaseSpeed * 0.5;
 }
 
 function getStunTime(ctx: GameRuntimeContext, trap?: TrapConfig): number {
@@ -335,6 +438,7 @@ function getStunTime(ctx: GameRuntimeContext, trap?: TrapConfig): number {
 }
 
 function clampCatInBounds(c: CatRuntimeState, mapW: number, mapH: number): void {
+    if (c.state === 'launching') return; // 弹射时墙碰撞由 resolveCatCollisions 处理
     const pad = 18;
     c.x = clamp(c.x, pad + c.r, mapW - pad - c.r);
     c.y = clamp(c.y, pad + c.r, mapH - pad - c.r);
@@ -370,6 +474,9 @@ function updateCatImg(c: CatRuntimeState, dt: number, ctx: GameRuntimeContext): 
     switch (c.state) {
     case 'sleeping':
         c.catImg = 'catSleep';
+        break;
+    case 'launching':
+        c.catImg = 'catAngry';
         break;
     case 'stunned':
         c.catImg = 'catStun';
@@ -437,6 +544,16 @@ function applyCatPhysics(c: CatRuntimeState, h: HamsterRuntimeState, map: MapDat
         const na = curAngle + clamp(diff, -turnSpeed, turnSpeed);
         c.vx = Math.cos(na);
         c.vy = Math.sin(na);
+        return;
+    }
+
+    if (c.state === 'launching') {
+        // 弹射物理：线性减速 v = v0 * (1 - t/T)
+        const elapsed = c.launchFlightTimer / c.launchFlightTime;
+        const speed = c.launchSpeed * (1 - elapsed);
+        const move = speed * 60 * dt;
+        c.x += c.launchVx * move;
+        c.y += c.launchVy * move;
         return;
     }
 
@@ -593,7 +710,7 @@ function handleStuckDetection(
     dt: number,
 ): void {
     const activeStates: CatRuntimeState['state'][] = [
-        'patrol', 'chase', 'charging', 'returning', 'alert', 'stunned', 'confused', 'surprised', 'lazy',
+        'patrol', 'chase', 'charging', 'launching', 'returning', 'alert', 'stunned', 'confused', 'surprised', 'lazy',
     ];
     if (!activeStates.includes(c.state)) {
         c.stuckTimer = 0;
@@ -751,6 +868,38 @@ function resolveCatCollisions(c: CatRuntimeState, ctx: GameRuntimeContext, map: 
         for (const f of map.furniture) {
             const fr = furnitureHitRect(f);
             if (f.interactive && c.state !== 'sleeping' && circRectHit(c.x, c.y, catHitR, fr.x, fr.y, fr.w, fr.h)) {
+                // 弹射中碰家具
+                if (c.state === 'launching') {
+                    const isAngry = c.angerLevel >= LAUNCH.angerThreshold;
+                    if (isAngry) {
+                        // 愤怒：家具反弹
+                        const fcx = f.x + f.w / 2;
+                        const fcy = f.y + f.h / 2;
+                        const bdx = c.x - fcx;
+                        const bdy = c.y - fcy;
+                        const bd = Math.hypot(bdx, bdy) || 1;
+                        c.launchVx = bdx / bd;
+                        c.launchVy = bdy / bd;
+                        c.launchSpeed *= 0.6;
+                        c.launchFlightTimer = 0;
+                        const p = pushOut(c.x, c.y, catHitR + 20, fr.x, fr.y, fr.w, fr.h);
+                        c.x = p.x;
+                        c.y = p.y;
+                    } else {
+                        // 眩晕
+                        c.state = 'stunned';
+                        c.stunTimer = LAUNCH.stunDuration;
+                        c.angerLevel = Math.min(LAUNCH.angerThreshold, c.angerLevel + 1);
+                        c.curSpd = 0;
+                        c.launchSpeed = 0;
+                        const p = pushOut(c.x, c.y, catHitR + 20, fr.x, fr.y, fr.w, fr.h);
+                        c.x = p.x;
+                        c.y = p.y;
+                    }
+                    c.collCooldown = 0.05;
+                    break;
+                }
+
                 const isDecor = !!f.decor;
                 const stun = getStunTime(ctx);
                 if (stun > 0 && isCatPursuing(c) && isCatFastEnough(c)) {
@@ -808,6 +957,20 @@ function resolveCatCollisions(c: CatRuntimeState, ctx: GameRuntimeContext, map: 
     if (c.collCooldown <= 0 && c.state !== 'sleeping') {
         for (const w of expandWallsForCollision(map)) {
             if (circRectHit(c.x, c.y, catHitR + 2, w.x, w.y, w.w, w.h)) {
+                // 弹射中碰墙：反弹
+                if (c.state === 'launching') {
+                    const p = pushOut(c.x, c.y, catHitR + 8, w.x, w.y, w.w, w.h);
+                    c.x = p.x;
+                    c.y = p.y;
+                    c.launchSpeed *= LAUNCH.wallBounceDecay;
+                    c.launchFlightTimer = 0;
+                    // 反弹方向
+                    if (w.x === 0 || w.x + w.w >= map.mapW) c.launchVx = -c.launchVx;
+                    if (w.y === 0 || w.y + w.h >= map.mapH) c.launchVy = -c.launchVy;
+                    c.collCooldown = 0.05;
+                    break;
+                }
+
                 const p = pushOut(c.x, c.y, catHitR + 8, w.x, w.y, w.w, w.h);
                 const pdx = p.x - c.x;
                 const pdy = p.y - c.y;
@@ -1003,36 +1166,78 @@ export function updateCat(ctx: GameRuntimeContext, map: MapData, dt: number): vo
         }
         break;
     case 'charging': {
-        c.face = 'chase';
-        c.targetSpd = 0;
-        c.curSpd = Math.max(0, c.curSpd - dt * 3);
-        c.chargeTimer = (c.chargeTimer || 0) + dt;
-        const ct = getCatChaseTarget(c, h, map);
-        catMove(c, ct.x, ct.y, ctx.time);
-        const chargeLimit = c.wakeCharge ? C().catWakeChargeTime : C().catChargeTime;
-        if (c.chargeTimer >= chargeLimit) {
-            if (c.wakeCharge) {
+        // wakeCharge: 惊醒后的短暂暂停（保持旧逻辑）
+        if (c.wakeCharge) {
+            c.face = 'chase';
+            c.targetSpd = 0;
+            c.curSpd = Math.max(0, c.curSpd - dt * 3);
+            c.chargeTimer = (c.chargeTimer || 0) + dt;
+            if (c.chargeTimer >= C().catWakeChargeTime) {
                 c.wakeCharge = false;
                 c.chargeTimer = 0;
                 startCatChase(c, h);
+            }
+            break;
+        }
+
+        // 新弹射蓄能：原地蓄能，瞄准，发射
+        c.face = 'chase';
+        c.targetSpd = 0;
+        c.curSpd = Math.max(0, c.curSpd - dt * 3);
+        c.energy = Math.min(100, c.energy + LAUNCH.chargeRate * dt);
+
+        // 老鼠跑太近了，取消蓄能回去走路
+        if (d < LAUNCH.chaseTriggerDist * 0.5) {
+            c.state = 'chase';
+            c.energy = 0;
+            break;
+        }
+
+        // 预判玩家位置
+        const predFlyTime = (c.energy / 100) * LAUNCH.maxTime;
+        let predX = h.x + h.vx * predFlyTime * LAUNCH.predictionWeight;
+        let predY = h.y + h.vy * predFlyTime * LAUNCH.predictionWeight;
+        const pad = 18 + CAT_RADIUS;
+        predX = clamp(predX, pad, map.mapW - pad);
+        predY = clamp(predY, pad, map.mapH - pad);
+        const predDist = Math.hypot(predX - c.x, predY - c.y);
+        const requiredEnergy = calcRequiredEnergy(predDist);
+
+        const isAngry = c.angerLevel >= LAUNCH.angerThreshold;
+
+        // 能量够了，尝试发射
+        if (c.energy >= requiredEnergy && c.energy >= LAUNCH.minEnergy && predDist > 10) {
+            const pdx = predX - c.x;
+            const pdy = predY - c.y;
+            const pdist = Math.hypot(pdx, pdy);
+            const pdirX = pdx / pdist;
+            const pdirY = pdy / pdist;
+
+            // 愤怒模式下忽略家具碰撞
+            const pred = predictLaunchTrajectory(c.x, c.y, pdirX, pdirY, c.energy, map.furniture, map.mapW, map.mapH);
+            if (isAngry || !pred.hitFurniture) {
+                launchCat(c, pdirX, pdirY, h);
                 break;
             }
-            c.state = 'chase';
-            c.dashTimer = C().catDashTime;
-            c.chargeCooldown = 4.5;
-            c.chargeTimer = 0;
-            const ct2 = getCatChaseTarget(c, h, map);
-            const dx = ct2.x - c.x;
-            const dy = ct2.y - c.y;
-            const len = Math.hypot(dx, dy);
-            if (len > 0.01) {
-                c.vx = dx / len;
-                c.vy = dy / len;
-                c.targetVx = c.vx;
-                c.targetVy = c.vy;
+
+            // 避障偏移
+            let foundPath = false;
+            for (const angle of [15, -15, 30, -30, 45, -45]) {
+                const rad = angle * Math.PI / 180;
+                const cos = Math.cos(rad); const sin = Math.sin(rad);
+                const odx = pdirX * cos - pdirY * sin;
+                const ody = pdirX * sin + pdirY * cos;
+                const offPred = predictLaunchTrajectory(c.x, c.y, odx, ody, c.energy, map.furniture, map.mapW, map.mapH);
+                if (isAngry || !offPred.hitFurniture) {
+                    launchCat(c, odx, ody, h);
+                    foundPath = true;
+                    break;
+                }
             }
-            c.targetSpd = c.chaseSpeed * 1.45;
-            c.curSpd = c.chaseSpeed * 1.25;
+
+            if (!foundPath && c.energy >= 90) {
+                launchCat(c, pdirX, pdirY, h);
+            }
         }
         break;
     }
@@ -1071,19 +1276,18 @@ export function updateCat(ctx: GameRuntimeContext, map: MapData, dt: number): vo
         if (ctx.foodStolen) c.committedChase = true;
         if (tickCatAbandon(c, h, d, dt, ctx.levelId)) break;
         c.face = 'chase';
-        if (c.chargeCooldown > 0) c.chargeCooldown -= dt;
         {
             const pastWarmup = c.chaseBuildup >= C().catChaseSmokeTime + C().catChaseAccelTime;
-            if (c.dashTimer <= 0 && pastWarmup && d > C().catFarDist && c.chargeCooldown <= 0) {
+            // 弹射触发：距离远时开始蓄能
+            if (pastWarmup && d > LAUNCH.chaseTriggerDist) {
                 c.state = 'charging';
-                c.chargeTimer = 0;
+                c.energy = 0;
+                c.targetSpd = 0;
+                c.curSpd = 0;
                 break;
             }
             c.chaseBuildup += dt;
-            if (c.dashTimer > 0) {
-                c.dashTimer -= dt;
-                c.targetSpd = c.chaseSpeed * (1.1 + (c.dashTimer / C().catDashTime) * 0.35);
-            } else if (c.chaseBuildup < C().catChaseSmokeTime) {
+            if (c.chaseBuildup < C().catChaseSmokeTime) {
                 c.targetSpd = 0;
             } else if (c.chaseBuildup < C().catChaseSmokeTime + C().catChaseAccelTime) {
                 const t = (c.chaseBuildup - C().catChaseSmokeTime) / C().catChaseAccelTime;
@@ -1093,6 +1297,20 @@ export function updateCat(ctx: GameRuntimeContext, map: MapData, dt: number): vo
             }
             const ct = getCatChaseTarget(c, h, map);
             catMove(c, ct.x, ct.y, ctx.time);
+        }
+        break;
+    case 'launching':
+        // 弹射飞行，物理在 applyCatPhysics 中处理
+        // 这里只做飞行结束判定
+        c.face = 'chase';
+        {
+            const elapsed = c.launchFlightTimer / c.launchFlightTime;
+            const speed = c.launchSpeed * (1 - elapsed);
+            if (elapsed >= 1.0 || speed < 0.1) {
+                c.state = 'chase';
+                c.energy = 0;
+                c.launchSpeed = 0;
+            }
         }
         break;
     case 'stunned':
@@ -1105,6 +1323,12 @@ export function updateCat(ctx: GameRuntimeContext, map: MapData, dt: number): vo
         if (c.stunTimer > 0) c.stunTimer -= dt;
         if (c.stunTimer <= 0) {
             if (ctx.foodStolen && c.committedChase) startCatChase(c, h);
+            else if (c.committedChase) {
+                // 弹射眩晕后回到追逐
+                c.state = 'chase';
+                c.face = 'chase';
+                c.energy = 0;
+            }
             else {
                 c.state = 'patrol';
                 c.patrolPts = genPatrolPts(map, ctx.placedTraps);
@@ -1160,6 +1384,8 @@ export function updateCat(ctx: GameRuntimeContext, map: MapData, dt: number): vo
     applyCatPhysics(c, h, map, dt);
 
     if (c.state === 'chase' && d < c.r + h.r + 6 && h.invincible <= 0) {
+        ctx.onCatCatch();
+    } else if (c.state === 'launching' && d < c.r + h.r + 10 && h.invincible <= 0) {
         ctx.onCatCatch();
     } else if (c.state === 'charging' && !c.wakeCharge && d < c.r + h.r + 8 && h.invincible <= 0) {
         ctx.onCatCatch();

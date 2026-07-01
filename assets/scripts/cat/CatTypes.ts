@@ -7,6 +7,7 @@ export type CatStateName =
     | 'surprised'
     | 'charging'
     | 'chase'
+    | 'launching'
     | 'returning'
     | 'stunned'
     | 'confused';
@@ -65,6 +66,14 @@ export interface CatRuntimeState {
     avoidUntil: number;
     avoidVx: number;
     avoidVy: number;
+    // 弹射系统
+    energy: number;
+    launchVx: number;
+    launchVy: number;
+    launchSpeed: number;
+    launchFlightTime: number;
+    launchFlightTimer: number;
+    angerLevel: number;
 }
 
 export interface HamsterRuntimeState {

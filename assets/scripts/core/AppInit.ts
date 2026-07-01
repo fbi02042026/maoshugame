@@ -2,6 +2,7 @@ import { _decorator, Component, director, Director, Scene } from 'cc';
 import { BootController } from '../ui/BootController';
 import { ComicController } from '../ui/ComicController';
 import { GameController } from '../game/GameController';
+import { LoginController } from '../ui/LoginController';
 import { MenuController } from '../ui/MenuController';
 
 const { ccclass } = _decorator;
@@ -11,6 +12,7 @@ type ControllerClass = typeof Component;
 const SCENE_CONTROLLERS: Record<string, ControllerClass> = {
     Boot: BootController,
     Comic: ComicController,
+    Login: LoginController,
     Menu: MenuController,
     Game: GameController,
 };
