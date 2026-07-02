@@ -107,7 +107,7 @@
     "__type__": "cc.UITransform",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 2
     },
     "_enabled": true,
@@ -126,7 +126,7 @@
     "__type__": "cc.Canvas",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 2
     },
     "_enabled": true,
@@ -139,7 +139,7 @@
     "__type__": "cc.Widget",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 2
     },
     "_enabled": true,
@@ -203,7 +203,7 @@
     "__type__": "cc.Camera",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 6
     },
     "_enabled": true,
@@ -273,7 +273,7 @@
     "__type__": "cc.UITransform",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 8
     },
     "_enabled": true,
@@ -292,7 +292,7 @@
     "__type__": "cc.Sprite",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 8
     },
     "_enabled": true,
@@ -370,7 +370,7 @@
     "__type__": "cc.UITransform",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 11
     },
     "_enabled": true,
@@ -389,7 +389,7 @@
     "__type__": "cc.Sprite",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 11
     },
     "_enabled": true,
@@ -464,7 +464,7 @@
     "__type__": "cc.UITransform",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 14
     },
     "_enabled": true,
@@ -483,7 +483,7 @@
     "__type__": "cc.Label",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 14
     },
     "_enabled": true,
@@ -583,7 +583,7 @@
     "__type__": "cc.UITransform",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 17
     },
     "_enabled": true,
@@ -602,7 +602,7 @@
     "__type__": "cc.Label",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 17
     },
     "_enabled": true,
@@ -702,7 +702,7 @@
     "__type__": "cc.UITransform",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 20
     },
     "_enabled": true,
@@ -721,7 +721,7 @@
     "__type__": "cc.Label",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 20
     },
     "_enabled": true,
@@ -828,7 +828,7 @@
     "__type__": "cc.UITransform",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 23
     },
     "_enabled": true,
@@ -847,7 +847,7 @@
     "__type__": "cc.Sprite",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 23
     },
     "_enabled": true,
@@ -881,7 +881,7 @@
     "__type__": "cc.Button",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 23
     },
     "_enabled": true,
@@ -971,7 +971,7 @@
     "__type__": "cc.UITransform",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 27
     },
     "_enabled": true,
@@ -990,7 +990,7 @@
     "__type__": "cc.Label",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 27
     },
     "_enabled": true,
@@ -1097,7 +1097,7 @@
     "__type__": "cc.UITransform",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 30
     },
     "_enabled": true,
@@ -1116,7 +1116,7 @@
     "__type__": "cc.Sprite",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 30
     },
     "_enabled": true,
@@ -1150,7 +1150,7 @@
     "__type__": "cc.Button",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 30
     },
     "_enabled": true,
@@ -1240,7 +1240,7 @@
     "__type__": "cc.UITransform",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 34
     },
     "_enabled": true,
@@ -1259,7 +1259,7 @@
     "__type__": "cc.Label",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 34
     },
     "_enabled": true,
@@ -1366,7 +1366,7 @@
     "__type__": "cc.UITransform",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 37
     },
     "_enabled": true,
@@ -1385,7 +1385,7 @@
     "__type__": "cc.Sprite",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 37
     },
     "_enabled": true,
@@ -1419,7 +1419,7 @@
     "__type__": "cc.Button",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 37
     },
     "_enabled": true,
@@ -1509,7 +1509,7 @@
     "__type__": "cc.UITransform",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 41
     },
     "_enabled": true,
@@ -1528,7 +1528,7 @@
     "__type__": "cc.Label",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 41
     },
     "_enabled": true,
@@ -1635,7 +1635,7 @@
     "__type__": "cc.UITransform",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 44
     },
     "_enabled": true,
@@ -1654,7 +1654,7 @@
     "__type__": "cc.Sprite",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 44
     },
     "_enabled": true,
@@ -1688,7 +1688,7 @@
     "__type__": "cc.Button",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 44
     },
     "_enabled": true,
@@ -1778,7 +1778,7 @@
     "__type__": "cc.UITransform",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 48
     },
     "_enabled": true,
@@ -1797,7 +1797,7 @@
     "__type__": "cc.Label",
     "_name": "",
     "_objFlags": 0,
-    "_node": {
+    "node": {
       "__id__": 48
     },
     "_enabled": true,
