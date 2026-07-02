@@ -15,7 +15,9 @@ export function applyNativeSpriteFrame(node: Node, frame: SpriteFrame): Sprite {
     const sprite = node.getComponent(Sprite) ?? node.addComponent(Sprite);
     sprite.sizeMode = Sprite.SizeMode.RAW;
     sprite.trim = false;
-    sprite.spriteFrame = frame;
+    if (frame && frame.texture) {
+        sprite.spriteFrame = frame;
+    }
     const ui = node.getComponent(UITransform) ?? node.addComponent(UITransform);
     ui.setAnchorPoint(0.5, 0.5);
     return sprite;

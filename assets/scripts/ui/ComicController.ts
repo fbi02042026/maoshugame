@@ -6,12 +6,10 @@ import {
     Component,
     director,
     Graphics,
-    ImageAsset,
     Label,
     Node,
     Sprite,
     SpriteFrame,
-    Texture2D,
     tween,
     UITransform,
     UIOpacity,
@@ -36,18 +34,15 @@ const PANEL_INTERVAL = 1.95;
 const FADE_TIME = 0.5;
 
 function loadSpriteFrameFromUuid(uuid: string): Promise<SpriteFrame> {
+    // 优先加载对应的 SpriteFrame 子资源（带 @6c48a），避免手动构造导致 UV 数据缺失
+    const sfUuid = uuid.includes('@') ? uuid : `${uuid}@6c48a`;
     return new Promise((resolve, reject) => {
-        assetManager.loadAny({ uuid }, (err, asset) => {
+        assetManager.loadAny({ uuid: sfUuid }, (err, asset) => {
             if (err || !asset) {
-                reject(err ?? new Error(`无法加载图片 UUID: ${uuid}`));
+                reject(err ?? new Error(`无法加载 SpriteFrame: ${sfUuid}`));
                 return;
             }
-            const imageAsset = asset as ImageAsset;
-            const texture = new Texture2D();
-            texture.image = imageAsset;
-            const spriteFrame = new SpriteFrame();
-            spriteFrame.texture = texture;
-            resolve(spriteFrame);
+            resolve(asset as SpriteFrame);
         });
     });
 }
@@ -79,7 +74,9 @@ export class ComicController extends Component {
             const ui = node.addComponent(UITransform);
             ui.setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
             const sprite = node.addComponent(Sprite);
-            sprite.spriteFrame = spriteFrame;
+            if (spriteFrame && spriteFrame.texture) {
+                sprite.spriteFrame = spriteFrame;
+            }
             sprite.sizeMode = Sprite.SizeMode.CUSTOM;
             const opacity = node.addComponent(UIOpacity);
             opacity.opacity = 0;

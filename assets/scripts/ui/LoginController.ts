@@ -137,14 +137,12 @@ export class LoginController extends Component {
             .to(0.4, { opacity: 255 }, { easing: 'quadOut' })
             .start();
 
-        // 绑定勾选框点击
         const agreementRow = footer.getChildByName('AgreementRow');
         if (agreementRow) {
-            const checkbox = agreementRow.getChildByName('Checkbox');
-            if (checkbox) {
-                this.setupCheckbox(checkbox);
+            const agreeBox = agreementRow.getChildByName('AgreeBox');
+            if (agreeBox) {
+                this.setupCheckbox(agreeBox);
             }
-            // 绑定协议链接
             const userAgreement = agreementRow.getChildByName('UserAgreement');
             if (userAgreement) {
                 userAgreement.on(Button.EventType.CLICK, () => {
@@ -162,32 +160,21 @@ export class LoginController extends Component {
         }
     }
 
-    /** 设置勾选框交互 */
-    private setupCheckbox(checkbox: Node): void {
-        // 确保有Button组件
-        let btn = checkbox.getComponent(Button);
-        if (!btn) btn = checkbox.addComponent(Button);
+    /** 设置勾选框交互：AgreeBox=底框，AgreeCheck=勾选图 */
+    private setupCheckbox(agreeBox: Node): void {
+        let btn = agreeBox.getComponent(Button);
+        if (!btn) btn = agreeBox.addComponent(Button);
 
-        // 确保有CheckMark子节点
-        let checkMark = checkbox.getChildByName('CheckMark');
-        if (!checkMark) {
-            checkMark = new Node('CheckMark');
-            checkbox.addChild(checkMark);
-            checkMark.addComponent(UITransform).setContentSize(22, 22);
-            const label = checkMark.addComponent(Label);
-            label.string = '✓';
-            label.fontSize = 18;
-            label.lineHeight = 22;
-            label.color = new Color(180, 210, 130, 255);
-            label.horizontalAlign = Label.HorizontalAlign.CENTER;
-            label.verticalAlign = Label.VerticalAlign.CENTER;
-            label.useSystemFont = true;
+        const agreeCheck = agreeBox.getChildByName('AgreeCheck');
+        if (!agreeCheck) {
+            console.warn('[LoginController] 找不到 AgreeCheck 子节点');
+            return;
         }
-        checkMark.active = false;
+        agreeCheck.active = false;
 
-        checkbox.on(Button.EventType.CLICK, () => {
+        agreeBox.on(Button.EventType.CLICK, () => {
             this._agreementChecked = !this._agreementChecked;
-            if (checkMark) checkMark.active = this._agreementChecked;
+            agreeCheck.active = this._agreementChecked;
         }, this);
     }
 

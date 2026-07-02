@@ -7,8 +7,6 @@ import {
     Node,
     Sprite,
     SpriteFrame,
-    Texture2D,
-    ImageAsset,
 } from 'cc';
 import { GameManager } from '../core/GameManager';
 import { SaveSystem } from '../core/SaveSystem';
@@ -84,8 +82,9 @@ export class MenuController extends Component {
         if (this.hamsterTimer >= FRAME_INTERVAL) {
             this.hamsterTimer -= FRAME_INTERVAL;
             this.hamsterFrameIdx = (this.hamsterFrameIdx + 1) % this.hamsterFrames.length;
-            if (this.hamsterSprite) {
-                this.hamsterSprite.spriteFrame = this.hamsterFrames[this.hamsterFrameIdx];
+            const f = this.hamsterFrames[this.hamsterFrameIdx];
+            if (this.hamsterSprite && f && f.texture) {
+                this.hamsterSprite.spriteFrame = f;
             }
         }
     }
@@ -150,18 +149,19 @@ export class MenuController extends Component {
             assetManager.loadAny(
                 { uuid: frameUuids[i] },
                 (err, asset) => {
-                    if (err) {
+                    if (err || !asset) {
                         loaded++;
                         return;
                     }
-                    const sf = new SpriteFrame();
-                    sf.texture = asset as Texture2D;
-                    frames[i] = sf;
+                    // 直接使用加载到的 SpriteFrame 子资源，不要手动 new SpriteFrame + 设 texture
+                    frames[i] = asset as SpriteFrame;
                     loaded++;
                     if (loaded === frameUuids.length) {
                         this.hamsterFrames = frames.filter((f): f is SpriteFrame => f !== null);
-                        if (this.hamsterFrames.length > 0 && this.hamsterSprite) {
-                            this.hamsterSprite.spriteFrame = this.hamsterFrames[0];
+                        const first = this.hamsterFrames[0];
+                        if (this.hamsterFrames.length > 0 && this.hamsterSprite && first && first.texture) {
+                            this.hamsterSprite.enabled = true;
+                            this.hamsterSprite.spriteFrame = first;
                             this.hamsterAnimating = true;
                         }
                     }
