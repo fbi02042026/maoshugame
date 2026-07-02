@@ -4,7 +4,6 @@
     "_name": "Menu",
     "_objFlags": 0,
     "_native": "",
-    "_id": "b0010002-0002-4002-8002-000000000001",
     "scene": {
       "__id__": 1
     }
@@ -100,8 +99,7 @@
       "y": 1.0,
       "z": 1.0
     },
-    "_layer": 33554432,
-    "_mobility": 0
+    "_layer": 33554432
   },
   {
     "__type__": "cc.UITransform",
@@ -196,8 +194,7 @@
       "y": 1.0,
       "z": 1.0
     },
-    "_layer": 1073741824,
-    "_mobility": 0
+    "_layer": 1073741824
   },
   {
     "__type__": "cc.Camera",
@@ -266,8 +263,7 @@
       "y": 1.0,
       "z": 1.0
     },
-    "_layer": 33554432,
-    "_mobility": 0
+    "_layer": 33554432
   },
   {
     "__type__": "cc.UITransform",
@@ -363,8 +359,7 @@
       "y": 1.0,
       "z": 1.0
     },
-    "_layer": 33554432,
-    "_mobility": 0
+    "_layer": 33554432
   },
   {
     "__type__": "cc.UITransform",
@@ -457,8 +452,7 @@
       "y": 1.0,
       "z": 1.0
     },
-    "_layer": 33554432,
-    "_mobility": 0
+    "_layer": 33554432
   },
   {
     "__type__": "cc.UITransform",
@@ -576,8 +570,7 @@
       "y": 1.0,
       "z": 1.0
     },
-    "_layer": 33554432,
-    "_mobility": 0
+    "_layer": 33554432
   },
   {
     "__type__": "cc.UITransform",
@@ -695,8 +688,7 @@
       "y": 1.0,
       "z": 1.0
     },
-    "_layer": 33554432,
-    "_mobility": 0
+    "_layer": 33554432
   },
   {
     "__type__": "cc.UITransform",
@@ -821,8 +813,7 @@
       "y": 1.0,
       "z": 1.0
     },
-    "_layer": 33554432,
-    "_mobility": 0
+    "_layer": 33554432
   },
   {
     "__type__": "cc.UITransform",
@@ -964,8 +955,7 @@
       "y": 1.0,
       "z": 1.0
     },
-    "_layer": 33554432,
-    "_mobility": 0
+    "_layer": 33554432
   },
   {
     "__type__": "cc.UITransform",
@@ -1090,8 +1080,7 @@
       "y": 1.0,
       "z": 1.0
     },
-    "_layer": 33554432,
-    "_mobility": 0
+    "_layer": 33554432
   },
   {
     "__type__": "cc.UITransform",
@@ -1233,8 +1222,7 @@
       "y": 1.0,
       "z": 1.0
     },
-    "_layer": 33554432,
-    "_mobility": 0
+    "_layer": 33554432
   },
   {
     "__type__": "cc.UITransform",
@@ -1359,8 +1347,7 @@
       "y": 1.0,
       "z": 1.0
     },
-    "_layer": 33554432,
-    "_mobility": 0
+    "_layer": 33554432
   },
   {
     "__type__": "cc.UITransform",
@@ -1502,8 +1489,7 @@
       "y": 1.0,
       "z": 1.0
     },
-    "_layer": 33554432,
-    "_mobility": 0
+    "_layer": 33554432
   },
   {
     "__type__": "cc.UITransform",
@@ -1628,8 +1614,7 @@
       "y": 1.0,
       "z": 1.0
     },
-    "_layer": 33554432,
-    "_mobility": 0
+    "_layer": 33554432
   },
   {
     "__type__": "cc.UITransform",
@@ -1771,8 +1756,7 @@
       "y": 1.0,
       "z": 1.0
     },
-    "_layer": 33554432,
-    "_mobility": 0
+    "_layer": 33554432
   },
   {
     "__type__": "cc.UITransform",
