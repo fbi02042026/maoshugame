@@ -11,21 +11,24 @@
  * are sure there is no conflict
  */
 
-import { _decorator, Node, director, Director, game, BaseNode, Canvas, Camera } from 'cc';
+import { _decorator, Node, director, Director, game, Canvas, Camera } from 'cc';
 import { EDITOR } from 'cc/env';
 
 const customLayerMask = 0x000fffff;
 const builtinLayerMask = 0xfff00000;
 
 director.on(Director.EVENT_AFTER_SCENE_LAUNCH, () => {
-    const roots = director.getScene()?.children as BaseNode[];
-    let allCanvases = director.getScene()?.getComponentsInChildren(Canvas) as Canvas[];
-    if (allCanvases.length <= 1) {
+    const scene = director.getScene();
+    if (!scene) return;
+    const roots = scene.children as Node[];
+    let allCanvases = scene.getComponentsInChildren(Canvas) as Canvas[];
+    if (!allCanvases || allCanvases.length <= 1) {
         return;
     }
-    allCanvases = allCanvases.filter((x) => !!x.cameraComponent);
+    allCanvases = allCanvases.filter((x) => !!x && !!x.cameraComponent);
 
-    const allCameras = director.getScene()?.getComponentsInChildren(Camera) as Camera[];
+    const allCameras = scene.getComponentsInChildren(Camera) as Camera[];
+    if (!allCameras) return;
     let usedLayer = 0;
     allCameras.forEach((x) => (usedLayer |= x.visibility & customLayerMask));
 
@@ -36,10 +39,10 @@ director.on(Director.EVENT_AFTER_SCENE_LAUNCH, () => {
             continue;
         }
         const canvases = root.getComponentsInChildren(Canvas);
-        if (canvases.length === 0) {
+        if (!canvases || canvases.length === 0) {
             continue;
         }
-        persistCanvas.push(...canvases.filter((x) => !!x.cameraComponent));
+        persistCanvas.push(...canvases.filter((x) => !!x && !!x.cameraComponent));
     }
 
     persistCanvas.forEach((val) => {
